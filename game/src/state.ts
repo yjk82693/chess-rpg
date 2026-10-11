@@ -54,6 +54,7 @@ export interface Unit {
   pos: Pos;
   alive: boolean;
   burnTurns: number;
+  mark: Attribute | null;     // attribute left by the last hit; a different one sets off a response
   items: Item[];
   expGained: number;          // earned this battle, read by Quartermaster
 }
@@ -80,7 +81,7 @@ export function makeUnit(spec: UnitSpec, team: Team, pos: Pos): Unit {
   return {
     id: spec.id, team, cls: spec.class, weapon: spec.weapon, attribute: spec.attribute,
     level: spec.level, subskill: spec.subskill, stats, maxHp: stats.hp, hp: stats.hp,
-    pos: { ...pos }, alive: true, burnTurns: 0, items: [Item.Vulnerary], expGained: 0,
+    pos: { ...pos }, alive: true, burnTurns: 0, mark: null, items: [Item.Vulnerary], expGained: 0,
   };
 }
 

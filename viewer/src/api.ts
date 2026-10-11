@@ -42,7 +42,8 @@ export async function postSolo(payload: unknown): Promise<string> {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return `Not saved: ${j.error ?? r.status}`;
-    return `Saved to MongoDB · ${j.battles} battle${j.battles === 1 ? "" : "s"} on record for your rival to study.`;
+    const saved = `Saved · ${j.battles} battle${j.battles === 1 ? "" : "s"} on record.`;
+    return j.rival ? `${saved} Rival Gen ${j.rival.generation} is ready: ${j.rival.rationale}` : `${saved} Your rival will study it.`;
   } catch {
     return "Not saved: API server isn't running (npm run server in game/).";
   }

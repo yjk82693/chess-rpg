@@ -51,6 +51,8 @@ gets at beating *you*.
 | Frozen stats: blind mutation gen 8 | 53.3 | 0.548 | n/a | n/a |
 | Hand-written reference playbook | 47% | 0.44 | 53% |
 
+Parallel coaches: one generation's 4 persona Coaches run concurrently in about 28 s, versus about 53 s run one after another (1.9x faster), and the best of the 4 candidates beats their average every generation (see charts).
+
 ### Charts
 
 ![Train score per generation: LLM Coach vs blind mutation](shared/chart_train_tg1_vs_tg-mutate.png)

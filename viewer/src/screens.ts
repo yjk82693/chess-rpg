@@ -40,7 +40,7 @@ export function start(root: HTMLElement, state: AppState) {
 export function go(name: ScreenName) {
   cleanup?.();
   cleanup = null;
-  ({ menu: menuScreen, training: trainingScreen, prep: prepScreen, battle: battleScreen, settings: settingsScreen })[name]();
+  ({ menu: menuScreen, training: trainingScreen, prep: prepScreen, battle: battleScreen, settings: settingsScreen, solo: soloScreen })[name]();
 }
 
 // ---------- helpers ----------

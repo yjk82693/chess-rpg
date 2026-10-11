@@ -2,26 +2,46 @@ export type Side = "P" | "E";
 export type Kind = "pawn" | "knight" | "bishop" | "rook" | "queen" | "king";
 export type Weapon = "sword" | "axe" | "lance" | "tome" | "staff";
 export type Body = "infantry" | "armored" | "flier";
+export type Rarity = "common" | "rare" | "super_rare" | "epic" | "legend";
+
+export const RARITY_OF: Record<number, Rarity> = { 1: "common", 2: "rare", 3: "super_rare", 4: "epic", 5: "legend" };
+export const RARITY_LABEL: Record<Rarity, string> = { common: "Common", rare: "Rare", super_rare: "Super Rare", epic: "Epic", legend: "Legend" };
+export const RARITY_COLOR: Record<Rarity, string> = { common: "#b8c0cc", rare: "#4fa3ff", super_rare: "#3ddc97", epic: "#b46cff", legend: "#ffb020" };
 
 export interface CardDef {
-  id: string; name: string; kind: Kind; weapon: Weapon; body: Body;
+  id: string; name: string; kind: Kind; weapon: Weapon; body: Body; cost: number;
   hp: number; atk: number; mag: number; def: number; res: number; spd: number;
   heal?: number; blurb: string;
 }
 
 export const CARDS: Record<string, CardDef> = {
-  inf_sword: { id: "inf_sword", name: "Swordsman", kind: "pawn", weapon: "sword", body: "infantry", hp: 12, atk: 5, mag: 0, def: 2, res: 1, spd: 6, blurb: "Quick blades. Beats axes." },
-  inf_axe: { id: "inf_axe", name: "Axeman", kind: "pawn", weapon: "axe", body: "infantry", hp: 14, atk: 7, mag: 0, def: 1, res: 0, spd: 4, blurb: "Hits hard. Beats lances." },
-  inf_lance: { id: "inf_lance", name: "Spearman", kind: "pawn", weapon: "lance", body: "infantry", hp: 13, atk: 6, mag: 0, def: 3, res: 1, spd: 5, blurb: "Steady line. Beats swords." },
-  armored: { id: "armored", name: "Armored Knight", kind: "knight", weapon: "lance", body: "armored", hp: 30, atk: 7, mag: 0, def: 9, res: 2, spd: 2, blurb: "A wall that jumps. Weak to magic." },
-  cavalier: { id: "cavalier", name: "Cavalier", kind: "knight", weapon: "sword", body: "infantry", hp: 24, atk: 8, mag: 0, def: 5, res: 3, spd: 8, blurb: "Fast striker, often hits twice." },
-  aero: { id: "aero", name: "Aero Knight", kind: "knight", weapon: "lance", body: "flier", hp: 20, atk: 7, mag: 0, def: 4, res: 5, spd: 9, blurb: "Flies. Lands anywhere, even the river." },
-  mage: { id: "mage", name: "Mage", kind: "bishop", weapon: "tome", body: "infantry", hp: 18, atk: 1, mag: 9, def: 2, res: 7, spd: 6, blurb: "Magic down the diagonals. Melts armor." },
-  cleric: { id: "cleric", name: "Cleric", kind: "bishop", weapon: "staff", body: "infantry", hp: 18, atk: 0, mag: 6, def: 2, res: 8, spd: 6, heal: 10, blurb: "Heals allies along the diagonals." },
-  dragon: { id: "dragon", name: "Dragon", kind: "rook", weapon: "axe", body: "flier", hp: 30, atk: 10, mag: 0, def: 7, res: 2, spd: 4, blurb: "Flying fortress. Huge axe hits." },
-  griffon: { id: "griffon", name: "Griffon", kind: "rook", weapon: "sword", body: "flier", hp: 24, atk: 8, mag: 0, def: 5, res: 4, spd: 8, blurb: "Swift flier. Crosses the river at will." },
-  queen: { id: "queen", name: "Queen of Storms", kind: "queen", weapon: "tome", body: "infantry", hp: 1, atk: 0, mag: 0, def: 0, res: 0, spd: 0, blurb: "Natural disaster. 3 instant kills, then gone." },
-  king: { id: "king", name: "King", kind: "king", weapon: "sword", body: "armored", hp: 28, atk: 6, mag: 0, def: 6, res: 4, spd: 5, blurb: "Rally allies or curse foes. Lose him, lose all." },
+  inf_sword: { id: "inf_sword", name: "Swordsman", kind: "pawn", weapon: "sword", body: "infantry", cost: 1, hp: 12, atk: 5, mag: 0, def: 2, res: 1, spd: 6, blurb: "Quick blades. Beats axes." },
+  inf_axe: { id: "inf_axe", name: "Axeman", kind: "pawn", weapon: "axe", body: "infantry", cost: 2, hp: 14, atk: 7, mag: 0, def: 1, res: 0, spd: 4, blurb: "Hits hard. Beats lances." },
+  inf_lance: { id: "inf_lance", name: "Spearman", kind: "pawn", weapon: "lance", body: "infantry", cost: 1, hp: 13, atk: 6, mag: 0, def: 3, res: 1, spd: 5, blurb: "Steady line. Beats swords." },
+  armored: { id: "armored", name: "Armored Knight", kind: "knight", weapon: "lance", body: "armored", cost: 3, hp: 30, atk: 7, mag: 0, def: 9, res: 2, spd: 2, blurb: "A wall that jumps. Weak to magic." },
+  cavalier: { id: "cavalier", name: "Cavalier", kind: "knight", weapon: "sword", body: "infantry", cost: 2, hp: 24, atk: 8, mag: 0, def: 5, res: 3, spd: 8, blurb: "Fast striker, often hits twice." },
+  aero: { id: "aero", name: "Aero Knight", kind: "knight", weapon: "lance", body: "flier", cost: 4, hp: 20, atk: 7, mag: 0, def: 4, res: 5, spd: 9, blurb: "Flies. Lands anywhere, even the river." },
+  mage: { id: "mage", name: "Mage", kind: "bishop", weapon: "tome", body: "infantry", cost: 2, hp: 18, atk: 1, mag: 9, def: 2, res: 7, spd: 6, blurb: "Magic down the diagonals. Melts armor." },
+  cleric: { id: "cleric", name: "Cleric", kind: "bishop", weapon: "staff", body: "infantry", cost: 3, hp: 18, atk: 0, mag: 6, def: 2, res: 8, spd: 6, heal: 10, blurb: "Heals allies along the diagonals." },
+  dragon: { id: "dragon", name: "Dragon", kind: "rook", weapon: "axe", body: "flier", cost: 4, hp: 30, atk: 10, mag: 0, def: 7, res: 2, spd: 4, blurb: "Flying fortress. Huge axe hits." },
+  griffon: { id: "griffon", name: "Griffon", kind: "rook", weapon: "sword", body: "flier", cost: 3, hp: 24, atk: 8, mag: 0, def: 5, res: 4, spd: 8, blurb: "Swift flier. Crosses the river at will." },
+  queen: { id: "queen", name: "Queen of Storms", kind: "queen", weapon: "tome", body: "infantry", cost: 0, hp: 1, atk: 0, mag: 0, def: 0, res: 0, spd: 0, blurb: "Natural disaster. 3 instant kills, then gone. Pawns that reach the far rank become a new Queen." },
+  king: { id: "king", name: "King", kind: "king", weapon: "sword", body: "armored", cost: 0, hp: 28, atk: 6, mag: 0, def: 6, res: 4, spd: 5, blurb: "Casts your spell cards. Lose him, lose all." },
+};
+
+export type SpellTarget = "none" | "square";
+export interface SpellDef { id: string; name: string; cost: number; target: SpellTarget; power: number; blurb: string; }
+
+export const SPELLS: Record<string, SpellDef> = {
+  rally: { id: "rally", name: "Rally", cost: 1, target: "none", power: 3, blurb: "All allies +3 ATK/MAG for a round." },
+  curse: { id: "curse", name: "Curse", cost: 1, target: "none", power: 3, blurb: "All enemies -3 DEF/RES for a round." },
+  mend: { id: "mend", name: "Mend", cost: 2, target: "none", power: 8, blurb: "Heal every ally 8 HP." },
+  lightning: { id: "lightning", name: "Lightning", cost: 2, target: "none", power: 9, blurb: "Strikes the 2 strongest enemy heroes for 9." },
+  fireball: { id: "fireball", name: "Fireball", cost: 3, target: "square", power: 12, blurb: "12 damage to enemies in a 3x3 area." },
+  bulwark: { id: "bulwark", name: "Bulwark", cost: 3, target: "none", power: 4, blurb: "All allies +4 DEF/RES for 2 rounds." },
+  earthquake: { id: "earthquake", name: "Earthquake", cost: 4, target: "none", power: 7, blurb: "7 damage to every enemy piece." },
+  meteor: { id: "meteor", name: "Meteor", cost: 5, target: "square", power: 22, blurb: "22 damage to enemies in a 3x3 area." },
+  resurrect: { id: "resurrect", name: "Resurrect", cost: 5, target: "none", power: 60, blurb: "Revive your strongest fallen hero at 60% HP beside the King." },
 };
 
 export const ROLE_CARDS: Record<"pawn" | "knight" | "bishop" | "rook", string[]> = {
@@ -30,9 +50,24 @@ export const ROLE_CARDS: Record<"pawn" | "knight" | "bishop" | "rook", string[]>
   bishop: ["mage", "cleric"],
   rook: ["dragon", "griffon"],
 };
+export const SPELL_IDS = Object.keys(SPELLS);
+export const SPELL_LIMIT = 3;
+export const DECK_BUDGET = 16;
 
-export interface Deck { pawn: string; knight: string; bishop: string; rook: string; levels?: Record<string, number>; }
-export const DEFAULT_DECK: Deck = { pawn: "inf_lance", knight: "cavalier", bishop: "mage", rook: "griffon" };
+export const costOf = (id: string): number => CARDS[id]?.cost ?? SPELLS[id]?.cost ?? 0;
+export const rarityOf = (id: string): Rarity => RARITY_OF[Math.max(1, Math.min(5, costOf(id)))]!;
+
+export interface Deck { pawn: string; knight: string; bishop: string; rook: string; spells?: string[]; levels?: Record<string, number>; }
+export const DEFAULT_DECK: Deck = { pawn: "inf_lance", knight: "cavalier", bishop: "mage", rook: "griffon", spells: ["rally", "curse"] };
+
+export function deckCost(d: Deck): number {
+  return costOf(d.pawn) + costOf(d.knight) + costOf(d.bishop) + costOf(d.rook) + (d.spells ?? []).reduce((t, s) => t + costOf(s), 0);
+}
+export function validSpells(d: Deck): string[] {
+  const out: string[] = [];
+  for (const id of d.spells ?? []) if (SPELLS[id] && !out.includes(id) && out.length < SPELL_LIMIT) out.push(id);
+  return out;
+}
 
 export const W = 8, H = 8;
 export const WATER_ROWS = [3, 4];
@@ -53,32 +88,33 @@ export interface Piece {
   id: string; side: Side; kind: Kind; card: string; level: number;
   x: number; y: number; hp: number; maxHp: number;
   atk: number; mag: number; def: number; res: number; spd: number;
-  weapon: Weapon; body: Body; alive: boolean; startY: number;
+  weapon: Weapon; body: Body; alive: boolean; startY: number; charges: number;
 }
 
-export interface Aura { kind: "rally" | "curse"; by: Side; until: number; }
+export interface Aura { kind: "rally" | "curse" | "ward"; by: Side; until: number; amt: number; }
 export interface ChessState {
   pieces: Piece[]; turn: Side; ply: number;
   casts: Record<Side, number>; kingCd: Record<Side, number>; auras: Aura[];
+  spells: Record<Side, string[]>; used: Record<Side, string[]>; spellLv: Record<Side, Record<string, number>>;
   winner: Side | "draw" | null; log: string[];
 }
 
-export type ActionType = "move" | "attack" | "cast" | "heal" | "rally" | "curse";
-export interface ChessAction { type: ActionType; pieceId: string; x: number; y: number; targetId?: string; }
+export type ActionType = "move" | "attack" | "cast" | "heal" | "spell";
+export interface ChessAction { type: ActionType; pieceId: string; x: number; y: number; targetId?: string; spell?: string; }
 
 export interface ChessEvent {
-  type: ActionType | "capture" | "kill" | "counter" | "vanish" | "win";
+  type: ActionType | "capture" | "kill" | "counter" | "vanish" | "win" | "promote" | "revive";
   pieceId: string; targetId?: string; x?: number; y?: number; amount?: number; text: string;
 }
 
-function mkPiece(side: Side, kind: Kind, cardId: string, x: number, y: number, level: number, n: number): Piece {
+function mkPiece(side: Side, kind: Kind, cardId: string, x: number, y: number, level: number, n: number | string): Piece {
   const c = CARDS[cardId]!;
   const lv = Math.max(1, Math.min(5, level)) - 1;
   const maxHp = c.hp + lv * 2;
   return {
     id: `${side}_${kind}_${n}`, side, kind, card: cardId, level: lv + 1, x, y, hp: maxHp, maxHp,
     atk: c.atk + (c.atk > 0 ? lv : 0), mag: c.mag + (c.mag > 0 ? lv : 0), def: c.def + lv, res: c.res + lv, spd: c.spd,
-    weapon: c.weapon, body: c.body, alive: true, startY: y,
+    weapon: c.weapon, body: c.body, alive: true, startY: y, charges: kind === "queen" ? QUEEN_CASTS : 0,
   };
 }
 
@@ -95,11 +131,20 @@ export function createChess(player: Deck, enemy: Deck): ChessState {
   };
   place("E", enemy, 0, 1);
   place("P", player, 7, 6);
-  return { pieces, turn: "P", ply: 0, casts: { P: 0, E: 0 }, kingCd: { P: 0, E: 0 }, auras: [], winner: null, log: [] };
+  const lvls = (d: Deck) => Object.fromEntries(validSpells(d).map(id => [id, d.levels?.[id] ?? 1]));
+  return {
+    pieces, turn: "P", ply: 0, casts: { P: 0, E: 0 }, kingCd: { P: 0, E: 0 }, auras: [],
+    spells: { P: validSpells(player), E: validSpells(enemy) }, used: { P: [], E: [] }, spellLv: { P: lvls(player), E: lvls(enemy) },
+    winner: null, log: [],
+  };
 }
 
 export function cloneChess(s: ChessState): ChessState {
-  return { ...s, pieces: s.pieces.map(p => ({ ...p })), casts: { ...s.casts }, kingCd: { ...s.kingCd }, auras: s.auras.map(a => ({ ...a })), log: [] };
+  return {
+    ...s, pieces: s.pieces.map(p => ({ ...p })), casts: { ...s.casts }, kingCd: { ...s.kingCd }, auras: s.auras.map(a => ({ ...a })),
+    spells: { P: [...s.spells.P], E: [...s.spells.E] }, used: { P: [...s.used.P], E: [...s.used.E] },
+    spellLv: { P: { ...s.spellLv.P }, E: { ...s.spellLv.E } }, log: [],
+  };
 }
 
 export function pieceAt(s: ChessState, x: number, y: number): Piece | undefined {
@@ -130,6 +175,31 @@ function slide(s: ChessState, p: Piece, dirs: number[][], ignoreWater: boolean, 
       if (mode === "attack" || mode === "heal") out.push({ type: "move", pieceId: p.id, x, y });
       x += dx!; y += dy!;
     }
+  }
+}
+
+const isHero = (p: Piece) => p.kind !== "pawn" && p.kind !== "queen";
+const chebyshev = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+
+function fallenHero(s: ChessState, side: Side): Piece | undefined {
+  return s.pieces.filter(q => !q.alive && q.side === side && (q.kind === "knight" || q.kind === "bishop" || q.kind === "rook"))
+    .sort((a, b) => VALUE[b.kind] - VALUE[a.kind] || b.maxHp - a.maxHp)[0];
+}
+
+function spellActions(s: ChessState, k: Piece, out: ChessAction[]) {
+  if (s.kingCd[k.side] !== 0) return;
+  const foes = s.pieces.filter(q => q.alive && q.side !== k.side);
+  for (const id of s.spells[k.side]) {
+    if (s.used[k.side].includes(id)) continue;
+    const sp = SPELLS[id]!;
+    if (sp.target === "square") {
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+        if (foes.some(f => chebyshev(f, { x, y }) <= 1)) out.push({ type: "spell", pieceId: k.id, x, y, spell: id });
+      continue;
+    }
+    if (id === "resurrect" && !fallenHero(s, k.side)) continue;
+    if (id === "mend" && !s.pieces.some(q => q.alive && q.side === k.side && q.hp < q.maxHp && q.kind !== "queen")) continue;
+    out.push({ type: "spell", pieceId: k.id, x: k.x, y: k.y, spell: id });
   }
 }
 
@@ -174,7 +244,7 @@ export function pieceActions(s: ChessState, p: Piece): ChessAction[] {
       slide(s, p, ORTHO, false, out, "attack");
       break;
     case "queen":
-      if (s.casts[p.side] < QUEEN_CASTS) slide(s, p, ALL8, true, out, "cast");
+      if (p.charges > 0) slide(s, p, ALL8, true, out, "cast");
       break;
     case "king":
       for (const [dx, dy] of ALL8) {
@@ -184,10 +254,7 @@ export function pieceActions(s: ChessState, p: Piece): ChessAction[] {
         if (q) { if (q.side !== p.side) out.push({ type: "attack", pieceId: p.id, x, y, targetId: q.id }); }
         else if (canStand(p, x, y)) out.push({ type: "move", pieceId: p.id, x, y });
       }
-      if (s.kingCd[p.side] === 0) {
-        out.push({ type: "rally", pieceId: p.id, x: p.x, y: p.y });
-        out.push({ type: "curse", pieceId: p.id, x: p.x, y: p.y });
-      }
+      spellActions(s, p, out);
       break;
   }
   return out;
@@ -201,8 +268,9 @@ export function legalChessActions(s: ChessState, side: Side = s.turn): ChessActi
 function auraMod(s: ChessState, p: Piece) {
   let atk = 0, def = 0;
   for (const a of s.auras) {
-    if (a.kind === "rally" && a.by === p.side) atk += AURA_AMOUNT;
-    if (a.kind === "curse" && a.by !== p.side) def -= AURA_AMOUNT;
+    if (a.kind === "rally" && a.by === p.side) atk += a.amt;
+    if (a.kind === "ward" && a.by === p.side) def += a.amt;
+    if (a.kind === "curse" && a.by !== p.side) def -= a.amt;
   }
   return { atk, def };
 }
@@ -225,13 +293,16 @@ export function strikeDamage(s: ChessState, a: Piece, d: Piece): number {
   return Math.max(1, Math.round(raw) - Math.max(0, d.def + dm.def));
 }
 
-const isHero = (p: Piece) => p.kind !== "pawn" && p.kind !== "queen";
-const chebyshev = (a: Piece, b: Piece) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
-
 function canCounter(att: Piece, def: Piece): boolean {
   if (!def.alive || def.kind === "queen" || def.weapon === "staff") return false;
   if (def.weapon === "tome") return chebyshev(att, def) <= 2;
   return chebyshev(att, def) <= 1;
+}
+
+export function spellPower(s: ChessState, side: Side, id: string): number {
+  const sp = SPELLS[id]!;
+  const lv = (s.spellLv[side][id] ?? 1) - 1;
+  return sp.power + lv * (sp.power >= 8 ? 2 : 1);
 }
 
 export interface Preview { dealt: number; taken: number; kills: boolean; dies: boolean; capture: boolean; }
@@ -257,6 +328,68 @@ function kill(s: ChessState, p: Piece, ev: ChessEvent[], by: Piece) {
 
 export function label(p: Piece): string { return `${p.side === "P" ? "Your" : "Enemy"} ${CARDS[p.card]!.name}`; }
 
+function promote(s: ChessState, p: Piece, ev: ChessEvent[]) {
+  if (!p.alive || p.kind !== "pawn") return;
+  const last = p.side === "P" ? 0 : H - 1;
+  if (p.y !== last) return;
+  const n = s.pieces.filter(q => q.side === p.side && q.kind === "queen").length;
+  const q = mkPiece(p.side, "queen", "queen", p.x, p.y, 1, `promo${n}`);
+  p.alive = false;
+  s.pieces.push(q);
+  ev.push({ type: "promote", pieceId: q.id, x: q.x, y: q.y, text: `${label(q)} rises from a promoted pawn (${QUEEN_CASTS} strikes)` });
+}
+
+function castSpell(s: ChessState, k: Piece, act: ChessAction, ev: ChessEvent[]) {
+  const sp = SPELLS[act.spell ?? ""];
+  if (!sp || !s.spells[k.side].includes(sp.id) || s.used[k.side].includes(sp.id) || s.kingCd[k.side] !== 0) return;
+  s.used[k.side].push(sp.id);
+  s.kingCd[k.side] = AURA_COOLDOWN + 1;
+  const pw = spellPower(s, k.side, sp.id);
+  ev.push({ type: "spell", pieceId: k.id, x: act.x, y: act.y, text: `${label(k)} casts ${sp.name}` });
+  const foes = () => s.pieces.filter(q => q.alive && q.side !== k.side);
+  const hurt = (q: Piece, amt: number) => {
+    if (s.winner || !q.alive) return;
+    const d = q.kind === "king" ? Math.ceil(amt / 2) : amt;
+    q.hp -= d;
+    ev.push({ type: "attack", pieceId: k.id, targetId: q.id, amount: d, x: q.x, y: q.y, text: `${sp.name} hits ${label(q)} for ${d}` });
+    if (q.hp <= 0) kill(s, q, ev, k);
+  };
+  switch (sp.id) {
+    case "rally": s.auras.push({ kind: "rally", by: k.side, until: s.ply + 2, amt: pw }); break;
+    case "curse": s.auras.push({ kind: "curse", by: k.side, until: s.ply + 2, amt: pw }); break;
+    case "bulwark": s.auras.push({ kind: "ward", by: k.side, until: s.ply + 4, amt: pw }); break;
+    case "mend":
+      for (const q of s.pieces) if (q.alive && q.side === k.side && q.kind !== "queen" && q.hp < q.maxHp) {
+        const amt = Math.min(pw, q.maxHp - q.hp);
+        q.hp += amt;
+        ev.push({ type: "heal", pieceId: k.id, targetId: q.id, amount: amt, x: q.x, y: q.y, text: `Mend heals ${label(q)} +${amt}` });
+      }
+      break;
+    case "lightning":
+      for (const q of foes().filter(isHero).sort((a, b) => VALUE[b.kind] - VALUE[a.kind] || b.hp - a.hp).slice(0, 2)) hurt(q, pw);
+      break;
+    case "fireball":
+    case "meteor":
+      for (const q of foes().filter(q => chebyshev(q, act) <= 1)) hurt(q, pw);
+      break;
+    case "earthquake":
+      for (const q of foes()) hurt(q, pw);
+      break;
+    case "resurrect": {
+      const f = fallenHero(s, k.side);
+      if (!f) break;
+      const spots = [];
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!pieceAt(s, x, y) && canStand(f, x, y)) spots.push({ x, y, d: chebyshev(k, { x, y }) });
+      spots.sort((a, b) => a.d - b.d);
+      const spot = spots[0];
+      if (!spot) break;
+      f.alive = true; f.x = spot.x; f.y = spot.y; f.hp = Math.max(1, Math.round(f.maxHp * pw / 100));
+      ev.push({ type: "revive", pieceId: f.id, x: f.x, y: f.y, text: `${label(f)} returns with ${f.hp} HP` });
+      break;
+    }
+  }
+}
+
 export function applyChess(s: ChessState, act: ChessAction): ChessEvent[] {
   const ev: ChessEvent[] = [];
   const p = byIdC(s, act.pieceId);
@@ -266,12 +399,10 @@ export function applyChess(s: ChessState, act: ChessAction): ChessEvent[] {
     case "move":
       p.x = act.x; p.y = act.y;
       ev.push({ type: "move", pieceId: p.id, x: act.x, y: act.y, text: `${label(p)} moves` });
+      promote(s, p, ev);
       break;
-    case "rally":
-    case "curse":
-      s.auras.push({ kind: act.type, by: p.side, until: s.ply + 2 });
-      s.kingCd[p.side] = AURA_COOLDOWN + 1;
-      ev.push({ type: act.type, pieceId: p.id, text: act.type === "rally" ? `${label(p)} rallies: allies +${AURA_AMOUNT} ATK` : `${label(p)} curses: foes -${AURA_AMOUNT} DEF` });
+    case "spell":
+      if (p.kind === "king") castSpell(s, p, act, ev);
       break;
     case "heal":
       if (t && t.alive) {
@@ -281,11 +412,12 @@ export function applyChess(s: ChessState, act: ChessAction): ChessEvent[] {
       }
       break;
     case "cast":
-      if (t && t.alive) {
+      if (t && t.alive && p.charges > 0) {
+        p.charges--;
         s.casts[p.side]++;
-        ev.push({ type: "cast", pieceId: p.id, targetId: t.id, x: t.x, y: t.y, text: `${label(p)} strikes ${label(t)} (${s.casts[p.side]}/${QUEEN_CASTS})` });
+        ev.push({ type: "cast", pieceId: p.id, targetId: t.id, x: t.x, y: t.y, text: `${label(p)} strikes ${label(t)} (${QUEEN_CASTS - p.charges}/${QUEEN_CASTS})` });
         kill(s, t, ev, p);
-        if (s.casts[p.side] >= QUEEN_CASTS) {
+        if (p.charges <= 0) {
           p.alive = false;
           ev.push({ type: "vanish", pieceId: p.id, x: p.x, y: p.y, text: `${label(p)} fades away` });
         }
@@ -297,6 +429,7 @@ export function applyChess(s: ChessState, act: ChessAction): ChessEvent[] {
         kill(s, t, ev, p);
         ev[0]!.type = "capture";
         if (canStand(p, t.x, t.y)) { p.x = t.x; p.y = t.y; }
+        promote(s, p, ev);
         break;
       }
       const hit = (a: Piece, d: Piece, kind: "attack" | "counter") => {
@@ -309,7 +442,7 @@ export function applyChess(s: ChessState, act: ChessAction): ChessEvent[] {
       if (t.alive && isHero(t) && canCounter(p, t)) hit(t, p, "counter");
       if (p.alive && t.alive && p.spd - t.spd >= 4 && p.kind !== "pawn") hit(p, t, "attack");
       else if (p.alive && t.alive && t.spd - p.spd >= 4 && canCounter(p, t)) hit(t, p, "counter");
-      if (!t.alive && p.alive && canStand(p, t.x, t.y)) { p.x = t.x; p.y = t.y; }
+      if (!t.alive && p.alive && canStand(p, t.x, t.y)) { p.x = t.x; p.y = t.y; promote(s, p, ev); }
       break;
     }
   }
@@ -332,6 +465,10 @@ export function material(s: ChessState, side: Side): number {
   return s.pieces.filter(p => p.alive && p.side === side && p.kind !== "king")
     .reduce((t, p) => t + VALUE[p.kind] * (p.hp / p.maxHp), 0);
 }
+function kingHp(s: ChessState, side: Side): number {
+  const k = s.pieces.find(p => p.side === side && p.kind === "king");
+  return k && k.alive ? k.hp / k.maxHp : 0;
+}
 function materialWinner(s: ChessState): Side | "draw" {
   const d = material(s, "P") - material(s, "E");
   return Math.abs(d) < 0.5 ? "draw" : d > 0 ? "P" : "E";
@@ -350,16 +487,28 @@ function threatened(s: ChessState, side: Side): Set<string> {
   return set;
 }
 
+function scoreSpell(s: ChessState, act: ChessAction, side: Side): number {
+  const sp = SPELLS[act.spell ?? ""];
+  if (!sp) return -100;
+  const foe = other(side);
+  if (sp.id === "rally" || sp.id === "curse" || sp.id === "bulwark") {
+    const near = s.pieces.filter(q => q.alive && q.side === foe && s.pieces.some(a => a.alive && a.side === side && a.kind !== "king" && chebyshev(a, q) <= 2)).length;
+    return near >= 3 ? 4 + near * 0.5 - sp.cost : -2;
+  }
+  const sim = cloneChess(s);
+  applyChess(sim, act);
+  if (sim.winner === side) return 10000;
+  const gain = (material(s, foe) - material(sim, foe)) + (material(sim, side) - material(s, side)) + (kingHp(s, foe) - kingHp(sim, foe)) * 6;
+  return gain * 10 - sp.cost * 4;
+}
+
 export function scoreChessAction(s: ChessState, act: ChessAction, pers: ChessPersonality = "tactician", threats?: Set<string>): number {
   const w = CHESS_AI[pers];
   const p = byIdC(s, act.pieceId)!;
   const t = act.targetId ? byIdC(s, act.targetId) : undefined;
   const fwd = p.side === "P" ? -1 : 1;
   let sc = 0;
-  if (act.type === "rally" || act.type === "curse") {
-    const enemiesNear = s.pieces.filter(q => q.alive && q.side !== p.side && Math.abs(q.y - p.y) <= 4).length;
-    return enemiesNear >= 3 ? 6 + (act.type === "curse" ? 0.5 : 0) : -1;
-  }
+  if (act.type === "spell") return scoreSpell(s, act, p.side);
   if (act.type === "cast") {
     if (!t || t.side === p.side) return -100;
     const v = VALUE[t.kind] * (t.hp / t.maxHp) * 10;
@@ -375,6 +524,7 @@ export function scoreChessAction(s: ChessState, act: ChessAction, pers: ChessPer
   const nx = act.type === "move" ? act.x : p.x, ny = act.type === "move" ? act.y : p.y;
   if (act.type === "move") {
     sc += (ny - p.y) * fwd * w.advance * (p.kind === "pawn" ? 1.5 : 1);
+    if (p.kind === "pawn" && ny === (p.side === "P" ? 0 : H - 1)) sc += 60;
     const king = s.pieces.find(q => q.alive && q.side === p.side && q.kind === "king");
     if (king) sc -= w.guard * Math.max(0, Math.max(Math.abs(nx - king.x), Math.abs(ny - king.y)) - 2) * 0.3;
     if (p.kind === "king") sc -= 1;
@@ -408,22 +558,25 @@ export function simulateChess(pd: Deck, ed: Deck, pp: ChessPersonality, ep: Ches
     if (!a) break;
     applyChess(s, a);
   }
-  return { winner: s.winner, plies: s.ply, casts: s.casts };
+  return { winner: s.winner, plies: s.ply, casts: s.casts, spells: { P: s.used.P.length, E: s.used.E.length }, queens: s.pieces.filter(q => q.kind === "queen" && q.id.includes("promo")).length };
 }
 
 if ((globalThis as any).process?.argv?.[1]?.endsWith("/chess.ts")) {
   const pers: ChessPersonality[] = ["rusher", "turtle", "tactician"];
+  const enemy: Deck = { pawn: "inf_axe", knight: "armored", bishop: "mage", rook: "dragon", spells: ["fireball", "mend", "curse"] };
+  let spells = 0, promos = 0;
   for (const pp of pers) {
     const row: string[] = [];
     for (const ep of pers) {
       let w = 0, l = 0, d = 0, plies = 0;
       for (let seed = 1; seed <= 20; seed++) {
-        const r = simulateChess(DEFAULT_DECK, { pawn: "inf_axe", knight: "armored", bishop: "mage", rook: "dragon" }, pp, ep, seed);
+        const r = simulateChess(DEFAULT_DECK, enemy, pp, ep, seed);
         if (r.winner === "P") w++; else if (r.winner === "E") l++; else d++;
-        plies += r.plies;
+        plies += r.plies; spells += r.spells.P + r.spells.E; promos += r.queens;
       }
       row.push(`${ep} ${w}-${l}-${d} avg ${Math.round(plies / 20)} plies`.padEnd(32));
     }
     console.log(`${pp.padEnd(10)} vs  ${row.join("")}`);
   }
+  console.log(`spells cast: ${spells} over 180 games · promotions: ${promos}`);
 }

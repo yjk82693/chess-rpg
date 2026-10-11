@@ -14,7 +14,7 @@ import { Frame, battleAt, buildFrames, describe, initialUnits } from "./replay.j
 import { GenExport, RunExport, frozenGens, fullGens, partyOf, playbookOf } from "./runs.js";
 import { COLORS, TILE } from "./theme.js";
 
-export type ScreenName = "menu" | "training" | "prep" | "battle" | "settings" | "solo" | "compare" | "chess";
+export type ScreenName = "menu" | "training" | "prep" | "battle" | "settings" | "solo" | "compare" | "chess" | "classic";
 
 export interface AppState {
   run: RunExport;
@@ -42,7 +42,7 @@ export function go(name: ScreenName) {
   cleanup?.();
   cleanup = null;
   current = name;
-  ({ menu: menuScreen, training: trainingScreen, prep: prepScreen, battle: battleScreen, settings: settingsScreen, solo: soloScreen, compare: compareScreen, chess: chessScreen })[name]();
+  ({ menu: chessScreen, classic: menuScreen, training: trainingScreen, prep: prepScreen, battle: battleScreen, settings: settingsScreen, solo: soloScreen, compare: compareScreen, chess: chessScreen })[name]();
 }
 
 // ---------- helpers ----------

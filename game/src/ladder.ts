@@ -1,28 +1,28 @@
-import { ROLE_CARDS, simulateChess, type ChessPersonality, type Deck } from "./chess.js";
+import { DECK_BUDGET, ROLE_CARDS, deckCost, simulateChess, type ChessPersonality, type Deck } from "./chess.js";
 import type { Collection } from "./cards.js";
 
 export interface LadderLevel { level: number; name: string; personality: ChessPersonality; deck: Deck; gems: number; }
 
 const NAMES = ["Squire", "Recruit", "Footman", "Sergeant", "Captain", "Knight-Errant", "Commander", "Warlord", "Grandmaster", "Storm King"];
 const DECKS: Omit<Deck, "levels">[] = [
-  { pawn: "inf_sword", knight: "armored", bishop: "cleric", rook: "griffon" },
-  { pawn: "inf_axe", knight: "armored", bishop: "mage", rook: "griffon" },
-  { pawn: "inf_lance", knight: "cavalier", bishop: "cleric", rook: "dragon" },
-  { pawn: "inf_axe", knight: "aero", bishop: "mage", rook: "griffon" },
-  { pawn: "inf_sword", knight: "cavalier", bishop: "mage", rook: "dragon" },
-  { pawn: "inf_lance", knight: "aero", bishop: "cleric", rook: "dragon" },
-  { pawn: "inf_axe", knight: "cavalier", bishop: "mage", rook: "dragon" },
-  { pawn: "inf_lance", knight: "armored", bishop: "mage", rook: "dragon" },
-  { pawn: "inf_sword", knight: "aero", bishop: "mage", rook: "dragon" },
-  { pawn: "inf_axe", knight: "cavalier", bishop: "mage", rook: "griffon" },
+  { pawn: "inf_sword", knight: "cavalier", bishop: "mage", rook: "griffon", spells: [] },
+  { pawn: "inf_lance", knight: "armored", bishop: "mage", rook: "griffon", spells: ["rally"] },
+  { pawn: "inf_axe", knight: "cavalier", bishop: "cleric", rook: "griffon", spells: ["curse"] },
+  { pawn: "inf_axe", knight: "armored", bishop: "mage", rook: "dragon", spells: ["mend"] },
+  { pawn: "inf_sword", knight: "cavalier", bishop: "mage", rook: "dragon", spells: ["rally", "fireball"] },
+  { pawn: "inf_lance", knight: "aero", bishop: "cleric", rook: "dragon", spells: ["mend", "bulwark"] },
+  { pawn: "inf_axe", knight: "cavalier", bishop: "mage", rook: "dragon", spells: ["curse", "lightning", "fireball"] },
+  { pawn: "inf_lance", knight: "armored", bishop: "mage", rook: "dragon", spells: ["rally", "earthquake"] },
+  { pawn: "inf_sword", knight: "aero", bishop: "mage", rook: "dragon", spells: ["lightning", "meteor"] },
+  { pawn: "inf_axe", knight: "cavalier", bishop: "mage", rook: "griffon", spells: ["curse", "mend", "resurrect"] },
 ];
 const PERS: ChessPersonality[] = ["turtle", "rusher", "turtle", "rusher", "tactician", "rusher", "tactician", "turtle", "tactician", "tactician"];
 
 export const LADDER: LadderLevel[] = NAMES.map((name, i) => {
-  const lv = Math.min(5, 1 + Math.floor(i / 2));
+  const lv = [1, 1, 1, 1, 2, 2, 3, 3, 4, 5][i]!;
   const base = DECKS[i]!;
   const levels: Record<string, number> = {};
-  for (const id of Object.values(base)) levels[id] = lv;
+  for (const id of [base.pawn, base.knight, base.bishop, base.rook, ...(base.spells ?? [])]) levels[id] = lv;
   return { level: i + 1, name, personality: PERS[i]!, deck: { ...base, levels }, gems: 10 + 5 * i };
 });
 
@@ -46,8 +46,10 @@ export function ownedDecks(c: Collection): Deck[] {
   for (const pawn of own(ROLE_CARDS.pawn)) for (const knight of own(ROLE_CARDS.knight))
     for (const bishop of own(ROLE_CARDS.bishop)) for (const rook of own(ROLE_CARDS.rook)) {
       const levels: Record<string, number> = {};
-      for (const id of [pawn, knight, bishop, rook]) levels[id] = c.cards[id]!.level;
-      out.push({ pawn, knight, bishop, rook, levels });
+      const spells = [...(c.deck.spells ?? [])];
+      for (const id of [pawn, knight, bishop, rook, ...spells]) levels[id] = c.cards[id]?.level ?? 1;
+      const d: Deck = { pawn, knight, bishop, rook, spells, levels };
+      if (deckCost(d) <= DECK_BUDGET) out.push(d);
     }
   return out;
 }

@@ -87,9 +87,13 @@ def call_with_retry_and_fallback(
     return fallback
 
 
+def _default_model() -> str:
+    return os.environ.get("LUMINAL_MODEL", "deepseek-chat")
+
+
 def coach_model_name() -> str:
-    return os.environ.get("LUMINAL_COACH_MODEL", "deepseek-chat")
+    return os.environ.get("LUMINAL_COACH_MODEL") or _default_model()
 
 
 def qm_model_name() -> str:
-    return os.environ.get("LUMINAL_QM_MODEL", "glm-4-flash")
+    return os.environ.get("LUMINAL_QM_MODEL") or os.environ.get("LUMINAL_MODEL", "glm-4-flash")

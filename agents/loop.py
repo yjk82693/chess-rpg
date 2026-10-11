@@ -10,7 +10,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from coach import load_playbook_doc, run_coaches_parallel
+from coach import CoachMode, load_playbook_doc, run_coaches_parallel
 from db import (
     assert_runner_finished,
     ensure_indexes,
@@ -120,7 +120,7 @@ def prepare_generation(
     run_id: str,
     generation: int,
     condition: Condition,
-    use_llm: bool,
+    coach_mode: CoachMode,
 ) -> None:
     prev = get_generation_doc(db, run_id, generation - 1, condition)
     if not prev or prev.get("status") != "done":
@@ -140,10 +140,11 @@ def prepare_generation(
             parent_id=parent_id,
             parent_win_rate=parent_wr,
             parent_avg_score=parent_as,
-            use_llm=use_llm,
+            coach_mode=coach_mode,
         )
     )
 
+    use_qm_llm = coach_mode == "llm"
     prev_party = party_from_previous_generation(db, run_id, generation - 1, condition) or DEFAULT_PARTY
     hints = {"note": "use battle summaries and exp from prior generation"}
     if condition == "full":
@@ -154,7 +155,7 @@ def prepare_generation(
             condition=condition,
             current=prev_party,
             battle_hints=hints,
-            use_llm=use_llm,
+            use_llm=use_qm_llm,
         )
         insert_party(db, run_id=run_id, generation=generation, condition=condition, party=party)
     # frozen_stats: no new party docs after gen 0 — runner uses latest party with gen <= N
@@ -221,7 +222,17 @@ def main() -> None:
     parser.add_argument("--condition", choices=["full", "frozen_stats"], default="full")
     parser.add_argument("--generations", type=int, default=2, help="Max generation index to reach")
     parser.add_argument("--fake-runner", action="store_true", help="Simulate TS runner in Python")
-    parser.add_argument("--skip-llm", action="store_true", help="Coach/QM fallbacks only (no API)")
+    parser.add_argument(
+        "--coach",
+        choices=["llm", "mutate", "copy"],
+        default="llm",
+        help="Coach: Luminal LLM, persona mutate (no API), or copy parent (legacy)",
+    )
+    parser.add_argument(
+        "--skip-llm",
+        action="store_true",
+        help="Alias for --coach mutate (QM also skips LLM)",
+    )
     parser.add_argument("--heldout", action="store_true", help="Run held-out eval after loop")
     parser.add_argument("--init-only", action="store_true", help="Seed gen0 and exit")
     parser.add_argument(
@@ -233,11 +244,14 @@ def main() -> None:
 
     run_id = args.run_id or new_run_id()
     condition: Condition = args.condition
-    use_llm = not args.skip_llm
+    coach_mode: CoachMode = "mutate" if args.skip_llm else args.coach
 
     db = get_db()
     ensure_indexes(db)
-    print(f"run_id={run_id} condition={condition} fake_runner={args.fake_runner} use_llm={use_llm}")
+    print(
+        f"run_id={run_id} condition={condition} fake_runner={args.fake_runner} "
+        f"coach_mode={coach_mode}"
+    )
 
     if not args.no_seed_gen0:
         seed_generation_zero(db, run_id, condition)
@@ -258,7 +272,7 @@ def main() -> None:
         if existing and existing.get("status") == "done":
             continue
         if not existing:
-            prepare_generation(db, run_id, gen, condition, use_llm)
+            prepare_generation(db, run_id, gen, condition, coach_mode)
         doc = run_eval_step(db, run_id, gen, condition, args.fake_runner)
         print(
             f"gen {gen} done win_rate={doc.get('win_rate')} avg_score={doc.get('avg_score')} "

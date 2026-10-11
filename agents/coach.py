@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List, Optional
+from typing import List, Literal, Optional
+
+CoachMode = Literal["llm", "mutate", "copy"]
 
 from bson import ObjectId
 from pymongo.database import Database
@@ -15,6 +17,7 @@ from db import (
     win_rates_by_map_and_npc,
     worst_train_battles,
 )
+from coach_mutate import mutate_proposal
 from defaults import DEFAULT_PLAYBOOK
 from llm import call_with_retry_and_fallback, coach_model_name
 from schemas import CoachProposal, Condition, Playbook
@@ -92,7 +95,7 @@ async def _one_coach(
     parent_id: ObjectId,
     parent_win_rate: float,
     parent_avg_score: float,
-    use_llm: bool,
+    coach_mode: CoachMode,
 ) -> ObjectId:
     system = (
         f"You are {persona}, a tactics coach for a turn-based grid SRPG. "
@@ -114,7 +117,7 @@ async def _one_coach(
         )
     )
     fallback = _fallback_proposal(parent, persona)
-    if use_llm:
+    if coach_mode == "llm":
         proposal = await asyncio.to_thread(
             call_with_retry_and_fallback,
             model=coach_model_name(),
@@ -123,6 +126,13 @@ async def _one_coach(
             temperature=0.7,
             schema=CoachProposal,
             fallback=fallback,
+        )
+    elif coach_mode == "mutate":
+        proposal = mutate_proposal(
+            parent,
+            persona,
+            run_id=run_id,
+            generation=generation,
         )
     else:
         proposal = fallback
@@ -148,7 +158,7 @@ async def run_coaches_parallel(
     parent_id: ObjectId,
     parent_win_rate: float,
     parent_avg_score: float,
-    use_llm: bool = True,
+    coach_mode: CoachMode = "llm",
     personas: Optional[List[str]] = None,
 ) -> List[ObjectId]:
     names = personas or list(PERSONAS.keys())
@@ -164,7 +174,7 @@ async def run_coaches_parallel(
             parent_id=parent_id,
             parent_win_rate=parent_win_rate,
             parent_avg_score=parent_avg_score,
-            use_llm=use_llm,
+            coach_mode=coach_mode,
         )
         for name in names
     ]

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/index.ts",
-    "runner": "tsx src/runner.ts"
+    "runner": "tsx src/runner.ts",
+    "export": "tsx src/export.ts"
   },
   "keywords": [],
   "author": "",

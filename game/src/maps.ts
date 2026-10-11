@@ -196,6 +196,6 @@ export function validateAll(): boolean {
 }
 
 // Run directly: npx tsx src/maps.ts
-if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
+if ((globalThis as any).process?.argv?.[1]?.endsWith("/maps.ts")) {
   process.exit(validateAll() ? 0 : 1);
 }

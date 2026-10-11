@@ -146,7 +146,7 @@ export const NPC_POLICIES: Record<string, Policy> = Object.fromEntries(
 
 // Run directly: npx tsx src/npc.ts
 // Prints player win rate for each player-side policy against each NPC across train maps.
-if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
+if ((globalThis as any).process?.argv?.[1]?.endsWith("/npc.ts")) {
   const seeds = [1, 2, 3, 4];
   const playerSides: Policy[] = [randomPolicy, ...Object.values(NPC_POLICIES)];
   const npcNames = Object.keys(PERSONALITIES);

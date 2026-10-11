@@ -200,7 +200,7 @@ export function evaluatePlaybook(o: EvalOptions) {
 }
 
 // Run directly: npx tsx src/executor.ts
-if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
+if ((globalThis as any).process?.argv?.[1]?.endsWith("/executor.ts")) {
   const tuned: Playbook = {
     formation: "front_armored",
     advance_turn: 2,

@@ -228,7 +228,7 @@ function shell(start: Tab) {
   });
   const onKey = (e: KeyboardEvent) => {
     const tag = (e.target as HTMLElement).tagName;
-    if (tag === "INPUT" || tag === "SELECT" || document.querySelector(".cr-modal")) return;
+    if (tag === "INPUT" || tag === "SELECT" || document.querySelector(".cr-modal") || !document.getElementById("panes")) return;
     const i = idx(tab);
     if (e.key === "ArrowRight" && i < TABS.length - 1) goTab(TABS[i + 1]!.id);
     if (e.key === "ArrowLeft" && i > 0) goTab(TABS[i - 1]!.id);
@@ -480,6 +480,7 @@ function battle(m: Match) {
   let done = false;
   let logLen = 0;
   let targeting: string | null = null;
+  let cursor = { x: 4, y: me === "P" ? 7 : 0 };
   const timers: number[] = [];
 
   app().innerHTML = `<div class="screen">
@@ -493,7 +494,7 @@ function battle(m: Match) {
             <button class="btn sm primary" id="hintbtn">Ask the Coach</button>
             <span class="muted small">King's spells:</span><div class="cr-spellbar" id="spellbar"></div>
           </div>
-          <div class="hint" id="hinttext">Click a piece to see its moves. Blue: move · Red: attack · Green: heal · Purple: queen strike.</div>
+          <div class="hint" id="hinttext">Arrows move the cursor · Space selects / confirms · Esc cancels. Blue: move · Red: attack · Green: heal · Purple: queen strike.</div>
         </div></div>
       </div>
       <div class="side-col">
@@ -550,6 +551,13 @@ function battle(m: Match) {
     c.fillStyle = "rgba(0,0,0,0.45)"; c.font = "11px Inter, sans-serif";
     for (let x = 0; x < W; x++) c.fillText("abcdefgh"[x]!, SX(x) + 3, size - 3);
     for (let y = 0; y < H; y++) c.fillText(String(8 - y), 3, SY(y) + 12);
+    if (!sel && !targeting) {
+      const under = pieceAt(s, cursor.x, cursor.y);
+      if (under && under.side === me) for (const a of actsFor(under.id)) {
+        c.fillStyle = a.type === "move" ? "rgba(80,140,255,0.18)" : "rgba(230,70,60,0.18)";
+        c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
+      }
+    }
     if (targeting) for (const a of spellActs(targeting)) {
       c.fillStyle = "rgba(255,140,40,0.42)"; c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
     }
@@ -565,6 +573,20 @@ function battle(m: Match) {
       c.setLineDash([]);
     }
     for (const pc of s.pieces) if (pc.alive) piece(pc);
+    {
+      const cx = SX(cursor.x) + 3, cy = SY(cursor.y) + 3, sz = TILE - 6, k = 14;
+      const pulse = (Math.sin(now / 350) + 1) / 2;
+      c.save();
+      c.shadowColor = COLORS.cursor; c.shadowBlur = 3 + pulse * 5;
+      c.strokeStyle = COLORS.cursor; c.lineWidth = 3 + pulse;
+      c.beginPath();
+      c.moveTo(cx, cy + k); c.lineTo(cx, cy); c.lineTo(cx + k, cy);
+      c.moveTo(cx + sz - k, cy); c.lineTo(cx + sz, cy); c.lineTo(cx + sz, cy + k);
+      c.moveTo(cx, cy + sz - k); c.lineTo(cx, cy + sz); c.lineTo(cx + k, cy + sz);
+      c.moveTo(cx + sz - k, cy + sz); c.lineTo(cx + sz, cy + sz); c.lineTo(cx + sz, cy + sz - k);
+      c.stroke();
+      c.restore();
+    }
     fx = fx.filter(f => f.until > now);
     for (const f of fx) {
       const t = 1 - (f.until - now) / 900;
@@ -600,7 +622,7 @@ function battle(m: Match) {
   };
 
   const info = () => {
-    const pc = sel ? byIdC(s, sel) : undefined;
+    const pc = sel ? byIdC(s, sel) : pieceAt(s, cursor.x, cursor.y);
     const aura = s.auras.map(a => `<span class="chip">${a.by === me ? "Your" : "Enemy"} ${a.kind === "ward" ? "bulwark" : a.kind}</span>`).join("")
       + `<div class="muted small" style="margin-top:6px">Enemy spells left: ${s.spells[foe].filter(id => !s.used[foe].includes(id)).map(id => SPELLS[id]!.name).join(", ") || "none"}</div>`;
     if (!pc) { $("info").innerHTML = `<h3>Piece</h3><p class="muted small">Select one of your pieces.</p><div class="tags">${aura}</div>`; return; }
@@ -740,12 +762,8 @@ function battle(m: Match) {
     timers.push(poll);
   }
 
-  canvas.addEventListener("click", ev => {
+  const activate = (x: number, y: number) => {
     if (busy || s.winner || s.turn !== me) return;
-    const rect = canvas.getBoundingClientRect();
-    const sx = Math.min(W - 1, Math.floor(((ev.clientX - rect.left) / rect.width) * W));
-    const sy = Math.min(H - 1, Math.floor(((ev.clientY - rect.top) / rect.height) * H));
-    const x = flip ? W - 1 - sx : sx, y = flip ? H - 1 - sy : sy;
     if (targeting) {
       const sa = spellActs(targeting).find(a => a.x === x && a.y === y);
       targeting = null;
@@ -757,7 +775,32 @@ function battle(m: Match) {
     const q = pieceAt(s, x, y);
     sel = q && q.side === me && sel !== q.id ? q.id : q && q.side === foe ? q.id : null;
     hud();
+  };
+  canvas.addEventListener("click", ev => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = Math.min(W - 1, Math.floor(((ev.clientX - rect.left) / rect.width) * W));
+    const sy = Math.min(H - 1, Math.floor(((ev.clientY - rect.top) / rect.height) * H));
+    cursor = { x: flip ? W - 1 - sx : sx, y: flip ? H - 1 - sy : sy };
+    activate(cursor.x, cursor.y);
   });
+  const onKey = (e: KeyboardEvent) => {
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    const dirs: Record<string, [number, number]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const d = dirs[e.key];
+    if (d) {
+      e.preventDefault();
+      const dx = flip ? -d[0] : d[0], dy = flip ? -d[1] : d[1];
+      cursor = { x: Math.max(0, Math.min(W - 1, cursor.x + dx)), y: Math.max(0, Math.min(H - 1, cursor.y + dy)) };
+      hud();
+    } else if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      activate(cursor.x, cursor.y);
+    } else if (e.key === "Escape") {
+      sel = null; targeting = null; hud();
+    }
+  };
+  window.addEventListener("keydown", onKey);
   $("resign").onclick = () => {
     if (s.winner) return;
     if (m.mode === "pvp") void pvp("leave", { roomId: m.roomId, player: p.player });
@@ -775,7 +818,8 @@ function battle(m: Match) {
     }
   };
 
-  setCleanup(() => timers.forEach(t => { window.clearTimeout(t); window.clearInterval(t); }));
+  setCleanup(() => { window.removeEventListener("keydown", onKey); timers.forEach(t => { window.clearTimeout(t); window.clearInterval(t); }); });
+  { const k = myKing(); if (k) cursor = { x: k.x, y: k.y }; }
   hud();
   requestAnimationFrame(draw);
 }

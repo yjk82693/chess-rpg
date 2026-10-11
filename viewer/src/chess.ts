@@ -174,6 +174,27 @@ function miniCard(id: string, level?: number) {
   return `<div class="cr-mc" style="border-color:${rarColor(id)}">${art}<div class="n">${esc(cardLabel(id))}</div><div class="l"><span class="cr-cost" style="width:16px;height:16px;font-size:10px">${costOf(id)}</span>${level ? ` Lv ${level}` : ""}</div></div>`;
 }
 
+function patternSquares(pc: Piece): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  const add = (x: number, y: number) => { if (x >= 0 && y >= 0 && x < W && y < H && !(x === pc.x && y === pc.y)) out.push({ x, y }); };
+  const O = [[1, 0], [-1, 0], [0, 1], [0, -1]], D = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+  const lines = (dirs: number[][]) => { for (const [dx, dy] of dirs) for (let i = 1; i < 8; i++) add(pc.x + dx! * i, pc.y + dy! * i); };
+  switch (pc.kind) {
+    case "pawn": {
+      const f = pc.side === "P" ? -1 : 1;
+      add(pc.x, pc.y + f); if (pc.y === pc.startY) add(pc.x, pc.y + 2 * f);
+      add(pc.x - 1, pc.y); add(pc.x + 1, pc.y); add(pc.x - 1, pc.y + f); add(pc.x + 1, pc.y + f);
+      break;
+    }
+    case "knight": for (const [dx, dy] of [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]]) add(pc.x + dx!, pc.y + dy!); break;
+    case "bishop": lines(D); break;
+    case "rook": lines(O); break;
+    case "queen": lines([...O, ...D]); break;
+    case "king": for (const [dx, dy] of [...O, ...D]) add(pc.x + dx!, pc.y + dy!); break;
+  }
+  return out;
+}
+
 function deckStrip(d: Deck) {
   const ids = [...ROLES.map(r => d[r]), ...(d.spells ?? [])];
   return `<div class="cr-deck">${ids.map(id => miniCard(id, d.levels?.[id] ?? profile?.collection.cards[id]?.level)).join("")}</div>
@@ -494,7 +515,7 @@ function battle(m: Match) {
             <button class="btn sm primary" id="hintbtn">Ask the Coach</button>
             <span class="muted small">King's spells:</span><div class="cr-spellbar" id="spellbar"></div>
           </div>
-          <div class="hint" id="hinttext">Arrows move the cursor · Space selects / confirms · Esc cancels. Blue: move · Red: attack · Green: heal · Purple: queen strike.</div>
+          <div class="hint" id="hinttext">Arrows move the cursor · Space selects / confirms · Esc cancels. Blue: can go · Red: blocked · Border: red attack, green heal, purple queen strike.</div>
         </div></div>
       </div>
       <div class="side-col">
@@ -551,19 +572,28 @@ function battle(m: Match) {
     c.fillStyle = "rgba(0,0,0,0.45)"; c.font = "11px Inter, sans-serif";
     for (let x = 0; x < W; x++) c.fillText("abcdefgh"[x]!, SX(x) + 3, size - 3);
     for (let y = 0; y < H; y++) c.fillText(String(8 - y), 3, SY(y) + 12);
-    if (!sel && !targeting) {
-      const under = pieceAt(s, cursor.x, cursor.y);
-      if (under && under.side === me) for (const a of actsFor(under.id)) {
-        c.fillStyle = a.type === "move" ? "rgba(80,140,255,0.18)" : "rgba(230,70,60,0.18)";
-        c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
+    const range = (pc: Piece, strong: boolean) => {
+      const legal = pieceActions(s, pc).filter(a => a.type !== "spell");
+      const ok = new Set(legal.map(a => `${a.x},${a.y}`));
+      const k = strong ? 1 : 0.45;
+      for (const q of patternSquares(pc)) if (!ok.has(`${q.x},${q.y}`)) {
+        c.fillStyle = `rgba(230,70,60,${0.32 * k})`;
+        c.fillRect(SX(q.x) + 2, SY(q.y) + 2, TILE - 4, TILE - 4);
       }
-    }
+      for (const a of legal) {
+        c.fillStyle = `rgba(80,140,255,${0.45 * k})`;
+        c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
+        if (a.type !== "move") {
+          c.strokeStyle = a.type === "attack" ? "#ff4d4d" : a.type === "heal" ? "#5fd07e" : "#c58bff";
+          c.lineWidth = strong ? 3 : 2;
+          c.strokeRect(SX(a.x) + 3, SY(a.y) + 3, TILE - 6, TILE - 6);
+        }
+      }
+    };
+    if (sel) { const sp = byIdC(s, sel); if (sp?.alive) range(sp, true); }
+    else if (!targeting) { const under = pieceAt(s, cursor.x, cursor.y); if (under) range(under, false); }
     if (targeting) for (const a of spellActs(targeting)) {
       c.fillStyle = "rgba(255,140,40,0.42)"; c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
-    }
-    for (const a of actsFor(sel)) {
-      c.fillStyle = a.type === "move" ? COLORS.blueTile : a.type === "attack" ? COLORS.redTile : a.type === "heal" ? "rgba(95,208,126,0.45)" : "rgba(170,90,255,0.45)";
-      c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
     }
     if (hint) {
       const hp = byIdC(s, hint.pieceId);

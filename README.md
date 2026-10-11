@@ -40,13 +40,24 @@ gets at beating *you*.
 
 ## Results
 
-| | Train win rate | Avg score | Held-out win rate |
-|---|---|---|---|
-| Gen 0 baseline playbook | 20% | 0.10 | [TBD] |
-| Best generation, full (LLM Coach) | [TBD] | [TBD] | [TBD] |
-| Best generation, frozen stats | [TBD] | [TBD] | [TBD] |
-| Blind mutation (same budget) | [TBD] | [TBD] | [TBD] |
+| | Train win % | Train score | Held-out win % | Held-out score |
+|---|---|---|---|---|
+| Gen 0 baseline | 20.0 | 0.099 | 35.2 | 0.320 |
+| Hand-written reference playbook | 47.0 | 0.44 | 53.0 | 0.44 |
+| LLM Coach, gen 3 (best-train rule) | 66.7 | 0.702 | 64.8 | 0.719 |
+| LLM Coach, gen 8 (final) | 60.0 | 0.623 | 67.2 | 0.725 |
+| Blind mutation, gen 8 (same budget) | 53.3 | 0.548 | 57.0 | 0.607 |
+| Frozen stats: LLM Coach gen 4 / gen 8 | 58.3 / 58.3 | 0.608 / 0.592 | n/a | n/a |
+| Frozen stats: blind mutation gen 8 | 53.3 | 0.548 | n/a | n/a |
 | Hand-written reference playbook | 47% | 0.44 | 53% |
+
+### Charts
+
+![Train score per generation: LLM Coach vs blind mutation](shared/chart_train_tg1_vs_tg-mutate.png)
+![Held-out win rate](shared/chart_heldout_bars.png)
+![Parallel coaches: best-of-4 vs mean-of-4 candidate](shared/chart_parallelism_best_vs_mean.png)
+![Which persona won each generation](shared/chart_parallelism_winner_persona.png)
+![Parallel vs sequential coach timing](shared/chart_coach_parallel_timing.png)
 
 Score = win (1/0) + 0.5 x (own HP ratio - enemy HP ratio).
 

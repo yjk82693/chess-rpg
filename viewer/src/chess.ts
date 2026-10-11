@@ -397,6 +397,9 @@ function arenaPane() {
     <div style="display:flex;justify-content:center;gap:18px;margin-top:-4px" class="muted small"><span><b style="color:${COLORS.team.npc}">●</b> Next: ${esc(nl.name)}</span><span><b style="color:${COLORS.team.player}">●</b> You</span></div>
     <div style="text-align:center" class="muted small">Your battle deck</div>
     ${deckStrip(deckWithLevels(p.collection))}
+    <div class="cr-hero" style="display:flex;justify-content:center;margin:6px 0 -6px">
+      <img src="/assets/cards/king_${avatar()}_full.png" alt="" onerror="this.parentElement.remove()" style="height:230px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(201,162,74,.55))">
+    </div>
     <div class="cr-modes">
       <div class="panel cr-mode">
         <h3>⚔️ Multiplayer</h3>
@@ -646,6 +649,21 @@ function battle(m: Match) {
       </div>
     </div></div>`;
   bindGo();
+  {
+    const mine = `king_${avatar()}_full`;
+    const theirs = kingArt(false) + "_full";
+    const vs = document.createElement("div");
+    vs.className = "cr-modal";
+    vs.style.cssText += ";background:radial-gradient(circle,rgba(20,28,56,.95),rgba(5,8,18,.98));transition:opacity .35s";
+    vs.innerHTML = `<div style="display:flex;align-items:center;gap:4vw">
+      <img src="/assets/cards/${mine}.png" alt="" onerror="this.style.visibility='hidden'" style="height:min(46vh,360px);filter:drop-shadow(0 0 22px ${COLORS.team.player})">
+      <div style="text-align:center"><div class="cr-vs" style="font-size:64px">VS</div><div class="muted">${esc(m.title)}</div></div>
+      <img src="/assets/cards/${theirs}.png" alt="" onerror="this.style.visibility='hidden'" style="height:min(46vh,360px);transform:scaleX(-1);filter:drop-shadow(0 0 22px ${COLORS.team.npc})">
+    </div>`;
+    document.body.appendChild(vs);
+    window.setTimeout(() => { vs.style.opacity = "0"; }, 1300);
+    window.setTimeout(() => vs.remove(), 1700);
+  }
 
   const canvas = $<HTMLCanvasElement>("cboard");
   const size = W * TILE, dpr = window.devicePixelRatio || 1;

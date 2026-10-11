@@ -118,7 +118,7 @@ function injectStyle() {
   .cr-nav button.active{color:#ecd28c;transform:translateY(-8px);background:linear-gradient(180deg,rgba(201,162,74,.28),transparent 80%);border-radius:12px 12px 0 0}
   .cr-h{font-family:Cinzel,serif;color:#ecd28c;text-align:center;letter-spacing:.08em;margin:4px 0 2px}
   .cr-sub{text-align:center;color:#98a1b6;margin:0 0 10px}
-  .cr-mini{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:min(300px,70vw);aspect-ratio:1;margin:10px auto;border:2px solid #c9a24a;border-radius:10px;overflow:hidden;box-shadow:0 0 30px rgba(201,162,74,.25)}
+  .cr-mini{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:min(400px,86vw);aspect-ratio:1;margin:10px auto;border:2px solid #c9a24a;border-radius:10px;overflow:hidden;box-shadow:0 0 30px rgba(201,162,74,.25)}
   .cr-mini div{display:flex;align-items:center;justify-content:center;font-size:clamp(11px,2.2vw,19px);color:#fff}
   .cr-modes{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:820px;margin:14px auto 0}
   @media (max-width:700px){.cr-modes{grid-template-columns:1fr}}
@@ -202,15 +202,17 @@ function deckStrip(d: Deck) {
     <div class="muted small" style="text-align:center">Deck cost <b style="color:${deckCost(d) > DECK_BUDGET ? "#ff5a52" : "#ecd28c"}">${deckCost(d)} / ${DECK_BUDGET}</b> · ${(d.spells ?? []).length}/${SPELL_LIMIT} spells</div>`;
 }
 
-function miniBoard() {
+function miniBoard(mine?: Deck, theirs?: Deck) {
   const back = ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"];
+  const cardFor = (kind: string, d?: Deck) => kind === "queen" || kind === "king" ? kind : d ? (d as unknown as Record<string, string>)[kind] ?? "" : "";
   let html = "";
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
     const bridge = BRIDGE_COLS.includes(x) && (y === 3 || y === 4);
     const bg = isWater(x, y) ? COLORS.terrain.water : bridge ? "#8a5a33" : (x + y) % 2 === 0 ? "#a9c77e" : "#87a85f";
-    const kind = y === 0 || y === 7 ? back[x] : y === 1 || y === 6 ? "pawn" : "";
+    const kind = y === 0 || y === 7 ? back[x]! : y === 1 || y === 6 ? "pawn" : "";
     const col = y < 2 ? COLORS.team.npc : COLORS.team.player;
-    html += `<div style="background:${bg}">${kind ? `<span style="color:${col};text-shadow:0 0 2px #000">${GLYPH[kind]}\uFE0E</span>` : ""}</div>`;
+    const id = kind ? cardFor(kind, y < 2 ? theirs : mine) : "";
+    html += `<div style="background:${bg};position:relative">${kind ? `<span style="color:${col};text-shadow:0 0 2px #000">${GLYPH[kind]}\uFE0E</span>${id ? `<img src="/assets/cards/${id}.png" alt="" onerror="this.remove()" style="position:absolute;inset:7%;width:86%;height:86%;object-fit:contain;border-radius:50%;background:${col};box-shadow:0 0 0 2px ${y < 2 ? "#fff" : "#c9a24a"};${y < 2 ? "transform:scaleX(-1);" : ""}">` : ""}` : ""}</div>`;
   }
   return `<div class="cr-mini">${html}</div>`;
 }
@@ -277,7 +279,8 @@ function arenaPane() {
   el.innerHTML = `
     <h2 class="cr-h">River Arena</h2>
     <p class="cr-sub">Chess, but your knights, bishops and rooks are RPG heroes.</p>
-    ${miniBoard()}
+    ${miniBoard(deckWithLevels(p.collection), nl.deck)}
+    <div style="display:flex;justify-content:center;gap:18px;margin-top:-4px" class="muted small"><span><b style="color:${COLORS.team.npc}">●</b> Next: ${esc(nl.name)}</span><span><b style="color:${COLORS.team.player}">●</b> You</span></div>
     <div style="text-align:center" class="muted small">Your battle deck</div>
     ${deckStrip(deckWithLevels(p.collection))}
     <div class="cr-modes">

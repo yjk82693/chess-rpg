@@ -10,17 +10,14 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from bson import ObjectId
-
 from coach import load_playbook_doc, run_coaches_parallel
 from db import (
-    aggregate_candidate_scores,
+    assert_runner_finished,
     ensure_indexes,
     get_db,
     get_generation_doc,
     insert_party,
     insert_playbook,
-    pick_best_playbook,
     run_fake_runner_for_generation,
     upsert_generation,
     write_fake_battles,
@@ -28,12 +25,12 @@ from db import (
 from defaults import (
     DEFAULT_PARTY,
     DEFAULT_PLAYBOOK,
+    HELDOUT_EVAL_NPCS,
     HELDOUT_MAPS,
-    HELDOUT_NPC,
     HELDOUT_SEEDS,
 )
 from quartermaster import party_from_previous_generation, run_quartermaster
-from schemas import Condition, Party, party_for_frozen_stats
+from schemas import Condition, Split, party_for_frozen_stats
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -71,7 +68,12 @@ def seed_generation_zero(db, run_id: str, condition: Condition) -> None:
     )
 
 
-def invoke_ts_runner(run_id: str, generation: int, condition: Condition) -> None:
+def invoke_ts_runner(
+    run_id: str,
+    generation: int,
+    condition: Condition,
+    split: Split = "train",
+) -> None:
     cmd = [
         "npm",
         "--prefix",
@@ -85,8 +87,12 @@ def invoke_ts_runner(run_id: str, generation: int, condition: Condition) -> None
         str(generation),
         "--condition",
         condition,
+        "--split",
+        split,
     ]
-    subprocess.run(cmd, cwd=REPO_ROOT, check=True)
+    result = subprocess.run(cmd, cwd=REPO_ROOT, check=False)
+    if result.returncode != 0:
+        raise SystemExit(f"npm runner exited with code {result.returncode}")
 
 
 def run_eval_step(
@@ -95,27 +101,18 @@ def run_eval_step(
     generation: int,
     condition: Condition,
     fake_runner: bool,
-) -> None:
+    split: Split = "train",
+) -> dict:
     gen = get_generation_doc(db, run_id, generation, condition)
     if not gen:
         raise SystemExit(f"generation {generation} missing")
     if fake_runner:
+        if split != "train":
+            raise SystemExit("fake-runner only supports train split; use TS runner for heldout")
         run_fake_runner_for_generation(db, run_id, generation, condition)
     else:
-        upsert_generation(
-            db,
-            run_id=run_id,
-            generation=generation,
-            condition=condition,
-            status="running",
-            candidates=gen["candidates"],
-        )
-        invoke_ts_runner(run_id, generation, condition)
-        refreshed = get_generation_doc(db, run_id, generation, condition)
-        if not refreshed or refreshed.get("status") != "done":
-            raise SystemExit(
-                "TS runner did not set generation status to done; use --fake-runner for local tests."
-            )
+        invoke_ts_runner(run_id, generation, condition, split=split)
+    return assert_runner_finished(db, run_id, generation, condition)
 
 
 def prepare_generation(
@@ -148,19 +145,20 @@ def prepare_generation(
     )
 
     prev_party = party_from_previous_generation(db, run_id, generation - 1, condition) or DEFAULT_PARTY
-    hints = {"note": "synthetic hints until TS summaries populate"}
-    party = run_quartermaster(
-        db,
-        run_id=run_id,
-        generation=generation,
-        condition=condition,
-        current=prev_party,
-        battle_hints=hints,
-        use_llm=use_llm and condition == "full",
-    )
-    if condition == "frozen_stats":
-        party = party_for_frozen_stats(prev_party)
-    insert_party(db, run_id=run_id, generation=generation, condition=condition, party=party)
+    hints = {"note": "use battle summaries and exp from prior generation"}
+    if condition == "full":
+        party = run_quartermaster(
+            db,
+            run_id=run_id,
+            generation=generation,
+            condition=condition,
+            current=prev_party,
+            battle_hints=hints,
+            use_llm=use_llm,
+        )
+        insert_party(db, run_id=run_id, generation=generation, condition=condition, party=party)
+    # frozen_stats: no new party docs after gen 0 — runner uses latest party with gen <= N
+
     upsert_generation(
         db,
         run_id=run_id,
@@ -172,7 +170,7 @@ def prepare_generation(
 
 
 def run_heldout_eval(db, run_id: str, condition: Condition, fake_runner: bool) -> None:
-    """Baseline gen0 vs final best on held-out maps (PLAN §8)."""
+    """Held-out eval: TS runner --split heldout on gen 0 and final gen (PLAN §8)."""
     gen0 = get_generation_doc(db, run_id, 0, condition)
     if not gen0:
         return
@@ -180,42 +178,41 @@ def run_heldout_eval(db, run_id: str, condition: Condition, fake_runner: bool) -
         g["generation"]
         for g in db.generations.find({"run_id": run_id, "condition": condition, "status": "done"})
     )
-    final = get_generation_doc(db, run_id, last_gen, condition)
-    if not final:
-        return
-    party0 = party_from_previous_generation(db, run_id, 0, condition)
-    party_f = party_from_previous_generation(db, run_id, last_gen, condition)
-    if not party0 or not party_f:
-        return
     from db import parties as parties_coll
 
-    p0_id = parties_coll(db).find_one(
-        {"run_id": run_id, "generation": 0, "condition": condition}
-    )["_id"]
-    pf_id = parties_coll(db).find_one(
-        {"run_id": run_id, "generation": last_gen, "condition": condition}
-    )["_id"]
-    import random
-
-    rng = random.Random(42)
-    for label, pb_id, party_id, gen in [
-        ("baseline", gen0["best_playbook_id"], p0_id, 0),
-        ("final", final["best_playbook_id"], pf_id, last_gen),
-    ]:
+    for gen in (0, last_gen):
+        gen_doc = get_generation_doc(db, run_id, gen, condition)
+        if not gen_doc or not gen_doc.get("candidates"):
+            continue
         if fake_runner:
-            write_fake_battles(
-                db,
-                run_id=run_id,
-                generation=gen,
-                condition=condition,
-                playbook_id=pb_id,
-                party_id=party_id,
-                split="heldout",
-                maps=HELDOUT_MAPS,
-                npcs=[HELDOUT_NPC],
-                seeds=HELDOUT_SEEDS,
-                rng=rng,
+            party_doc = parties_coll(db).find_one(
+                {"run_id": run_id, "condition": condition, "generation": {"$lte": gen}},
+                sort=[("generation", -1)],
             )
+            if not party_doc:
+                continue
+            import random
+
+            rng = random.Random(42 + gen)
+            for pid in gen_doc["candidates"]:
+                write_fake_battles(
+                    db,
+                    run_id=run_id,
+                    generation=gen,
+                    condition=condition,
+                    playbook_id=pid,
+                    party_id=party_doc["_id"],
+                    split="heldout",
+                    maps=HELDOUT_MAPS,
+                    npcs=HELDOUT_EVAL_NPCS,
+                    seeds=HELDOUT_SEEDS,
+                    rng=rng,
+                )
+        else:
+            run_eval_step(db, run_id, gen, condition, False, split="heldout")
+            ho = get_generation_doc(db, run_id, gen, condition)
+            if ho and ho.get("heldout"):
+                print(f"heldout gen {gen}: best win_rate={ho['heldout'].get('win_rate')}")
 
 
 def main() -> None:
@@ -227,6 +224,11 @@ def main() -> None:
     parser.add_argument("--skip-llm", action="store_true", help="Coach/QM fallbacks only (no API)")
     parser.add_argument("--heldout", action="store_true", help="Run held-out eval after loop")
     parser.add_argument("--init-only", action="store_true", help="Seed gen0 and exit")
+    parser.add_argument(
+        "--no-seed-gen0",
+        action="store_true",
+        help="Do not create gen0 (use existing run e.g. demo1)",
+    )
     args = parser.parse_args()
 
     run_id = args.run_id or new_run_id()
@@ -237,7 +239,8 @@ def main() -> None:
     ensure_indexes(db)
     print(f"run_id={run_id} condition={condition} fake_runner={args.fake_runner} use_llm={use_llm}")
 
-    seed_generation_zero(db, run_id, condition)
+    if not args.no_seed_gen0:
+        seed_generation_zero(db, run_id, condition)
     if args.init_only:
         if args.fake_runner:
             run_eval_step(db, run_id, 0, condition, True)
@@ -245,24 +248,26 @@ def main() -> None:
         return
 
     g0 = get_generation_doc(db, run_id, 0, condition)
-    if g0 and g0.get("status") != "done":
+    if not g0:
+        raise SystemExit("gen 0 missing; omit --no-seed-gen0 or use --init via game runner")
+    if g0.get("status") != "done":
         run_eval_step(db, run_id, 0, condition, args.fake_runner)
 
     for gen in range(1, args.generations + 1):
-        if get_generation_doc(db, run_id, gen, condition):
-            if get_generation_doc(db, run_id, gen, condition)["status"] == "done":
-                continue
-        else:
+        existing = get_generation_doc(db, run_id, gen, condition)
+        if existing and existing.get("status") == "done":
+            continue
+        if not existing:
             prepare_generation(db, run_id, gen, condition, use_llm)
-        run_eval_step(db, run_id, gen, condition, args.fake_runner)
-        doc = get_generation_doc(db, run_id, gen, condition)
+        doc = run_eval_step(db, run_id, gen, condition, args.fake_runner)
         print(
-            f"gen {gen} done win_rate={doc.get('win_rate')} avg_score={doc.get('avg_score')}"
+            f"gen {gen} done win_rate={doc.get('win_rate')} avg_score={doc.get('avg_score')} "
+            f"best={doc.get('best_playbook_id')}"
         )
 
     if args.heldout:
         run_heldout_eval(db, run_id, condition, args.fake_runner)
-        print("held-out battles written (split=heldout)")
+        print("held-out eval finished (split=heldout)")
 
     print(f"finished run_id={run_id}")
 

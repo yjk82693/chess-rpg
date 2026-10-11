@@ -15,6 +15,9 @@ cp ../.env.example ../.env   # set MONGODB_URI (Atlas) and LUMINAL_*
 # Smoke test without Luminal or TS runner
 python loop.py --fake-runner --skip-llm --generations 2 --heldout
 
+# Existing run (e.g. demo1) — do not recreate gen0
+python loop.py --run-id demo1 --no-seed-gen0 --generations 1 --skip-llm
+
 # Production handshake (needs game runner + API keys)
 python loop.py --run-id tg-my-run --condition full --generations 6
 

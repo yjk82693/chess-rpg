@@ -9,6 +9,7 @@ from bson import ObjectId
 from pymongo.database import Database
 
 from db import (
+    coach_battle_context_rows,
     insert_playbook,
     recent_playbooks_with_scores,
     win_rates_by_map_and_npc,
@@ -67,14 +68,14 @@ def build_coach_user_payload(
     worst = worst_train_battles(
         db, run_id, generation - 1, condition, parent_playbook_id, limit=5
     )
-    summaries = [w.get("summary", {}) for w in worst]
+    battle_notes = coach_battle_context_rows(worst)
     history = recent_playbooks_with_scores(db, run_id, condition, generation - 1, limit=3)
     return (
         f"Parent playbook JSON:\n{parent_playbook.model_dump_json()}\n\n"
         f"Parent metrics: win_rate={parent_win_rate:.3f} avg_score={parent_avg_score:.3f}\n"
         f"Win rate by map_id: {map_rates}\n"
         f"Win rate by npc_id: {npc_rates}\n"
-        f"Worst train battle summaries (3-5):\n{summaries}\n"
+        f"Worst train battles (use summary.notes for evidence):\n{battle_notes}\n"
         f"Last generations best playbooks:\n{history}\n"
     )
 

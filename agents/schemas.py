@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 Condition = Literal["full", "frozen_stats"]
 Split = Literal["train", "heldout"]
-GenerationStatus = Literal["pending", "running", "done"]
+GenerationStatus = Literal["pending", "running", "done", "failed"]
 
 
 class Formation(str, Enum):
@@ -59,7 +59,7 @@ class Unit(BaseModel):
     level: int = Field(ge=1)
     exp: int = Field(ge=0)
     star: int = Field(ge=1, le=5)
-    promotion: Optional[str] = None
+    promotion: Optional[int] = 0
     subskill: Optional[str] = None
     items: list[ItemId] = Field(default_factory=list, max_length=2)
 

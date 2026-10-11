@@ -13,10 +13,22 @@ from pymongo import ASCENDING, MongoClient
 from pymongo.collection import Collection
 from pymongo.database import Database
 
-from defaults import HELDOUT_MAPS, HELDOUT_NPC, HELDOUT_SEEDS, TRAIN_MAPS, TRAIN_NPCS, TRAIN_SEEDS
+from defaults import (
+    HELDOUT_EVAL_NPCS,
+    HELDOUT_MAPS,
+    HELDOUT_SEEDS,
+    TRAIN_MAPS,
+    TRAIN_NPCS,
+    TRAIN_SEEDS,
+)
 from schemas import Condition, Party, Playbook, Split
 
 load_dotenv()
+
+
+def player_won(winner: Optional[str]) -> bool:
+    """TS runner uses 'player' / 'npc'; legacy fake data may use own/enemy."""
+    return winner in ("player", "own")
 
 
 def _utcnow() -> datetime:
@@ -191,7 +203,7 @@ def aggregate_candidate_scores(
             continue
         stats[pid]["n"] += 1
         stats[pid]["score_sum"] += float(row.get("score", 0))
-        if row.get("winner") == "own":
+        if player_won(row.get("winner")):
             stats[pid]["wins"] += 1
     out: dict[ObjectId, dict[str, float]] = {}
     for pid, s in stats.items():
@@ -266,7 +278,7 @@ def win_rates_by_map_and_npc(
     ):
         m = row.get("map_id", "unknown")
         n = row.get("npc_id", "unknown")
-        win = 1.0 if row.get("winner") == "own" else 0.0
+        win = 1.0 if player_won(row.get("winner")) else 0.0
         by_map.setdefault(m, []).append(win)
         by_npc.setdefault(n, []).append(win)
     map_rates = {k: sum(v) / len(v) for k, v in by_map.items()}
@@ -316,13 +328,52 @@ def recent_playbooks_with_scores(
 
 def compute_score(winner: str, own_hp_ratio: float, enemy_hp_ratio: float) -> float:
     """PLAN §5.4."""
-    win_part = 1.0 if winner == "own" else 0.0
+    win_part = 1.0 if player_won(winner) else 0.0
     return win_part + 0.5 * (own_hp_ratio - enemy_hp_ratio)
 
 
-def _minimal_summary(outcome: str, turns: int) -> dict:
+def coach_battle_context_rows(battle_docs: list[dict]) -> list[dict]:
+    """Coach input: summary.notes and key fields (never raw events)."""
+    rows = []
+    for b in battle_docs:
+        summary = b.get("summary") or {}
+        rows.append(
+            {
+                "score": b.get("score"),
+                "map_id": b.get("map_id"),
+                "npc_id": b.get("npc_id"),
+                "winner": b.get("winner"),
+                "outcome": summary.get("outcome"),
+                "turns": summary.get("turns"),
+                "notes": summary.get("notes") or [],
+            }
+        )
+    return rows
+
+
+def assert_runner_finished(
+    db: Database, run_id: str, generation: int, condition: Condition
+) -> dict:
+    """Verify TS runner left generation in a terminal state."""
+    doc = get_generation_doc(db, run_id, generation, condition)
+    if not doc:
+        raise SystemExit(f"generation {generation} missing after runner")
+    status = doc.get("status")
+    if status == "failed":
+        raise SystemExit(f"runner failed for gen {generation}: {doc.get('error')}")
+    if status != "done":
+        raise SystemExit(
+            f"runner did not finish gen {generation} (status={status!r}); "
+            "check npm output or use --fake-runner"
+        )
+    return doc
+
+
+def _minimal_summary(winner: str, turns: int) -> dict:
+    outcome = "win" if player_won(winner) else "loss"
     return {
         "outcome": outcome,
+        "reason": "fake",
         "turns": turns,
         "units_lost": {"own": 0, "enemy": 0},
         "deaths": [],
@@ -330,7 +381,7 @@ def _minimal_summary(outcome: str, turns: int) -> dict:
         "fort_heals": 0,
         "forest_evades": 0,
         "turning_point_turn": max(1, turns // 2),
-        "notes": ["fake-runner synthetic summary"],
+        "notes": ["fake-runner synthetic summary for pipeline smoke test"],
     }
 
 
@@ -356,7 +407,7 @@ def write_fake_battles(
             for seed in seeds:
                 own_hp = rng.uniform(0.2, 1.0)
                 enemy_hp = rng.uniform(0.0, 0.9)
-                winner = "own" if own_hp >= enemy_hp else "enemy"
+                winner = "player" if own_hp >= enemy_hp else "npc"
                 turns = rng.randint(3, 10)
                 score = compute_score(winner, own_hp, enemy_hp)
                 coll.insert_one(

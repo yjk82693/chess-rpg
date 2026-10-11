@@ -1,10 +1,9 @@
-"""Generation 0 baseline (PLAN §8) — hand-written playbook and party."""
+"""Generation 0 baseline and IDs aligned with game/src (runner eval sets)."""
 
 from __future__ import annotations
 
-from schemas import Party, Playbook, Unit
+from schemas import ItemId, Party, Playbook, Unit
 
-# §5.1 default tactics for baseline measurements.
 DEFAULT_PLAYBOOK = Playbook(
     formation="spread",
     advance_turn=2,
@@ -16,69 +15,76 @@ DEFAULT_PLAYBOOK = Playbook(
     avoid_triangle_disadvantage=True,
 )
 
-# §5.2 + §11: four infantry, cost 24, no shop spend on gen0.
+# Matches game/src/parties.ts DEFAULT_PLAYER (lowercase enums for Mongo).
 DEFAULT_PARTY = Party(
     units=[
         Unit(
-            id="u1",
-            class_="Infantry",
-            weapon="Sword",
-            attribute="Fire",
+            id="p_rook",
+            class_="armored",
+            weapon="lance",
+            attribute="water",
             level=5,
             exp=0,
-            star=2,
-            promotion=None,
+            star=1,
+            promotion=0,
             subskill=None,
-            items=[],
+            items=[ItemId.vulnerary],
         ),
         Unit(
-            id="u2",
-            class_="Infantry",
-            weapon="Axe",
-            attribute="Water",
+            id="p_knight",
+            class_="cavalier",
+            weapon="sword",
+            attribute="fire",
             level=5,
             exp=0,
-            star=2,
-            promotion=None,
+            star=1,
+            promotion=0,
             subskill=None,
-            items=[],
+            items=[ItemId.vulnerary],
         ),
         Unit(
-            id="u3",
-            class_="Infantry",
-            weapon="Lance",
-            attribute="Electric",
+            id="p_bishop",
+            class_="winged",
+            weapon="lance",
+            attribute="electric",
             level=5,
             exp=0,
-            star=2,
-            promotion=None,
+            star=1,
+            promotion=0,
             subskill=None,
-            items=[],
+            items=[ItemId.vulnerary],
         ),
         Unit(
-            id="u4",
-            class_="Infantry",
-            weapon="Sword",
-            attribute="Water",
+            id="p_queen",
+            class_="mage",
+            weapon="tome",
+            attribute="fire",
             level=5,
             exp=0,
-            star=2,
-            promotion=None,
+            star=1,
+            promotion=0,
             subskill=None,
-            items=[],
+            items=[ItemId.vulnerary],
         ),
     ],
-    cost=24,
-    gold_spent=0,
+    cost=12,
+    gold_spent=200,
 )
 
-# Training grid (align with game runner when implemented).
-TRAIN_MAPS = ["train_01", "train_02", "train_03", "train_04", "train_05"]
-TRAIN_NPCS = ["aggressive", "defensive", "balanced", "mage_focus"]
-TRAIN_SEEDS = [101, 202, 303, 404]
+# For charts/filters only — runner picks maps/NPCs/seeds itself.
+TRAIN_MAPS = [
+    "open_field",
+    "forest_road",
+    "river_ford",
+    "twin_forts",
+    "mixed_valley",
+]
+TRAIN_NPCS = ["rusher", "turtle", "elementalist"]
+TRAIN_SEEDS = [1, 2, 3, 4]
 
-HELDOUT_MAPS = ["heldout_01", "heldout_02"]
-HELDOUT_NPC = "ambusher"
-HELDOUT_SEEDS = [9001, 9002, 9003, 9004]
+HELDOUT_MAPS = ["lake_crossing", "dense_woods"]
+HELDOUT_NPCS = ["hunter"]
+HELDOUT_EVAL_NPCS = TRAIN_NPCS + HELDOUT_NPCS
+HELDOUT_SEEDS = list(range(101, 117))
 
 SHOP_BUDGET = 300

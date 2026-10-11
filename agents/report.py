@@ -71,15 +71,31 @@ def heldout_table(db: Database, run_id: str, condition: str) -> str:
     if not last:
         return "no final generation"
     lines = ["held-out (split=heldout) baseline vs final", "-" * 40]
-    for label, gen_doc in [("baseline", gen0), ("final", last)]:
-        pb = gen_doc["best_playbook_id"]
+
+    def _heldout_metrics(gen_doc: dict) -> tuple[float, float, int]:
+        ho = gen_doc.get("heldout")
+        if ho:
+            return (
+                float(ho.get("win_rate") or 0),
+                float(ho.get("avg_score") or 0),
+                int(ho.get("n_battles") or 0),
+            )
+        pb = gen_doc.get("best_playbook_id")
+        if not pb:
+            return 0.0, 0.0, 0
         agg = aggregate_candidate_scores(
             db, run_id, gen_doc["generation"], condition, [pb], split="heldout"
         ).get(pb, {})
+        return (
+            float(agg.get("win_rate") or 0),
+            float(agg.get("avg_score") or 0),
+            int(agg.get("n_battles") or 0),
+        )
+
+    for label, gen_doc in [("baseline", gen0), ("final", last)]:
+        wr, sc, n = _heldout_metrics(gen_doc)
         lines.append(
-            f"{label} gen={gen_doc['generation']} "
-            f"win_rate={agg.get('win_rate', 0):.3f} avg_score={agg.get('avg_score', 0):.3f} "
-            f"n={int(agg.get('n_battles', 0))}"
+            f"{label} gen={gen_doc['generation']} win_rate={wr:.3f} avg_score={sc:.3f} n={n}"
         )
     return "\n".join(lines)
 

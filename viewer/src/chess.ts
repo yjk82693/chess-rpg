@@ -12,7 +12,7 @@ import { LADDER, ladderReward, recommendDecks, type DeckPick } from "../../game/
 import { candidates, describeAction } from "../../game/src/chess-hint.js";
 import { bindGo, esc, setCleanup, topbar } from "./screens.js";
 import { COLORS, TILE } from "./theme.js";
-import { playerId } from "./api.js";
+import { playerId, setPlayerId } from "./api.js";
 
 const STRIPE_LINK = "";
 const GLYPH: Record<string, string> = { pawn: "♟", knight: "♞", bishop: "♝", rook: "♜", queen: "♛", king: "♚" };
@@ -20,12 +20,13 @@ const ROLE_LABEL: Record<string, string> = { pawn: "Pawn card", knight: "Knight"
 const ROLES = ["pawn", "knight", "bishop", "rook"] as const;
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-type Tab = "shop" | "cards" | "arena" | "rank";
+type Tab = "shop" | "cards" | "arena" | "rank" | "settings";
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "shop", icon: "🛒", label: "Shop" },
   { id: "cards", icon: "🃏", label: "Cards" },
   { id: "arena", icon: "⚔️", label: "Battle" },
   { id: "rank", icon: "🏆", label: "Ranking" },
+  { id: "settings", icon: "⚙️", label: "Settings" },
 ];
 
 interface Profile { player: string; collection: Collection; ladderCleared: number; trophies: number; }
@@ -40,12 +41,27 @@ let profile: Profile | null = null;
 let online = false;
 let tab: Tab = "arena";
 try { tab = (localStorage.getItem("tg.tab") as Tab) || "arena"; } catch { /* ignore */ }
-if (!["shop", "cards", "arena", "rank"].includes(tab)) tab = "arena";
+if (!["shop", "cards", "arena", "rank", "settings"].includes(tab)) tab = "arena";
 const sprites: Record<string, HTMLImageElement> = {};
 const LOCAL_KEY = () => `tg.chess.${playerId()}`;
+const kv = {
+  get: (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* storage blocked */ } },
+};
+const token = () => kv.get("tg.token");
+const AVATARS = ["cat", "dog", "parrot"];
+const avatar = () => { const a = kv.get("tg.avatar") ?? ""; return AVATARS.includes(a) ? a : "cat"; };
+const kingArt = (mine: boolean) => mine ? `king_${avatar()}` : `king_${AVATARS[(AVATARS.indexOf(avatar()) + 1) % AVATARS.length]}`;
+const prefs = () => ({ speed: Number(kv.get("tg.speed") ?? "550") || 550, hover: kv.get("tg.hover") !== "off" });
 
 function loadSprites() {
-  for (const id of Object.keys(CARDS)) {
+  for (const id of [...Object.keys(SPELLS), "chest", "pouch"]) {
+    if (sprites[id]) continue;
+    const img = new Image();
+    img.src = `/assets/cards/${id}.png`;
+    sprites[id] = img;
+  }
+  for (const id of [...Object.keys(CARDS), ...Object.keys(SPELLS), "king_dog", "king_cat", "king_parrot"]) {
     if (sprites[id]) continue;
     const img = new Image();
     img.src = `/assets/cards/${id}.png`;
@@ -56,8 +72,11 @@ const spriteOk = (id: string) => { const i = sprites[id]; return !!i && i.comple
 
 async function call<T>(url: string, body?: unknown): Promise<T | null> {
   try {
-    const r = await fetch(url, body === undefined ? undefined : {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    const headers: Record<string, string> = {};
+    const tk = token();
+    if (tk) headers.Authorization = `Bearer ${tk}`;
+    const r = await fetch(url, body === undefined ? { headers } : {
+      method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     if (!r.ok) return null;
     return (await r.json()) as T;
@@ -111,14 +130,14 @@ function injectStyle() {
   .cr-panes{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
   .cr-panes::-webkit-scrollbar{display:none}
   .cr-pane{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;overflow-y:auto;padding:16px;box-sizing:border-box}
-  .cr-nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(201,162,74,.35);background:rgba(10,14,30,.94)}
+  .cr-nav{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid rgba(201,162,74,.35);background:rgba(10,14,30,.94)}
   .cr-nav button{background:none;border:0;color:#98a1b6;padding:8px 0 10px;cursor:pointer;font:inherit;transition:transform .18s,color .18s}
   .cr-nav button span{display:block;font-size:26px;line-height:1.1}
   .cr-nav button small{font-size:12px;letter-spacing:.05em;text-transform:uppercase}
   .cr-nav button.active{color:#ecd28c;transform:translateY(-8px);background:linear-gradient(180deg,rgba(201,162,74,.28),transparent 80%);border-radius:12px 12px 0 0}
   .cr-h{font-family:Cinzel,serif;color:#ecd28c;text-align:center;letter-spacing:.08em;margin:4px 0 2px}
   .cr-sub{text-align:center;color:#98a1b6;margin:0 0 10px}
-  .cr-mini{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:min(300px,70vw);aspect-ratio:1;margin:10px auto;border:2px solid #c9a24a;border-radius:10px;overflow:hidden;box-shadow:0 0 30px rgba(201,162,74,.25)}
+  .cr-mini{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:min(400px,86vw);aspect-ratio:1;margin:10px auto;border:2px solid #c9a24a;border-radius:10px;overflow:hidden;box-shadow:0 0 30px rgba(201,162,74,.25)}
   .cr-mini div{display:flex;align-items:center;justify-content:center;font-size:clamp(11px,2.2vw,19px);color:#fff}
   .cr-modes{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:820px;margin:14px auto 0}
   @media (max-width:700px){.cr-modes{grid-template-columns:1fr}}
@@ -126,7 +145,7 @@ function injectStyle() {
   .cr-mode h3{margin:0}
   .cr-big{font-size:19px;padding:14px 22px;letter-spacing:.08em}
   .cr-deck{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0}
-  .cr-mc{width:76px;padding:6px 4px;text-align:center;border:1px solid rgba(201,162,74,.45);border-radius:8px;background:rgba(20,28,56,.85)}
+  .cr-mc{width:84px;padding:6px 4px;text-align:center;border:1px solid rgba(201,162,74,.45);border-radius:8px;background:rgba(20,28,56,.85)}
   .cr-mc .g{font-size:26px} .cr-mc img{width:44px;height:44px;object-fit:contain}
   .cr-mc .n{font-size:11px;line-height:1.2} .cr-mc .l{font-size:10px;color:#ecd28c}
   .cr-modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:flex;align-items:center;justify-content:center;z-index:60}
@@ -149,29 +168,40 @@ const rarColor = (id: string) => RARITY_COLOR[rarityOf(id)];
 const rarBadge = (id: string) => `<span class="cr-rar" style="color:${rarColor(id)}">${RARITY_LABEL[rarityOf(id)]}</span> <span class="cr-cost" title="Deck cost">${costOf(id)}</span>`;
 const cardLabel = (id: string) => CARDS[id]?.name ?? SPELLS[id]?.name ?? id;
 
+function ico(id: string, size = 18, fallback = "✦") {
+  return `<img src="/assets/cards/${id}.png" alt="" onerror="this.replaceWith('${fallback}')" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;margin-right:4px">`;
+}
+
+function artBox(id: string, fallback: string, h = 120) {
+  return `<div style="position:relative;height:${h}px;margin:6px 0;border-radius:8px;overflow:hidden;background:radial-gradient(circle at 50% 42%, ${rarColor(id)}66, rgba(10,14,30,.92) 70%);border:1px solid ${rarColor(id)}66">
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${Math.round(h * 0.52)}px;color:${rarColor(id)}">${fallback}</div>
+    <img src="/assets/cards/${id}.png" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:4px;box-sizing:border-box">
+  </div>`;
+}
+
 function cardTile(id: string, extra = "", dim = false) {
   const o = profile?.collection.cards[id];
   const sp = SPELLS[id];
   const head = `<div class="row tight" style="justify-content:space-between">${rarBadge(id)}${o ? `<span class="muted small">Lv ${o.level}</span>` : ""}</div>`;
   const border = `border-color:${rarColor(id)}88;${dim ? "opacity:.45;" : ""}`;
   if (sp) {
-    const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="" style="width:56px;height:56px;object-fit:contain">` : `<div class="glyph" style="color:${rarColor(id)}">✦</div>`;
+    const art = artBox(id, "✦");
     return `<div class="panel card" style="${border}">${head}${art}<div class="name">${esc(sp.name)}</div>
       <div class="muted small">King spell · ${sp.target === "square" ? "targeted" : "instant"}</div>
       <div class="small" style="margin:4px 0">${esc(sp.blurb)}</div>${extra}</div>`;
   }
   const c = CARDS[id]!;
-  const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="" style="width:56px;height:56px;object-fit:contain">` : `<div class="glyph">${GLYPH[c.kind]}\uFE0E</div>`;
+  const art = artBox(id, `${GLYPH[c.kind]}\uFE0E`);
   return `<div class="panel card" style="${border}">${head}
     ${art}<div class="name">${esc(c.name)}</div>
     <div class="muted small">${ROLE_LABEL[c.kind] ?? c.kind} · ${c.weapon} · ${c.body}</div>
-    <div class="small" style="margin:4px 0">HP ${c.hp} · ATK ${c.atk || c.mag} · DEF ${c.def} · SPD ${c.spd}</div>
+    <div class="small" style="margin:4px 0">${c.kind === "pawn" ? `HP ${c.hp} · ${c.weapon} · fixed 6 dmg` : `HP ${c.hp} · ATK ${c.atk || c.mag} · DEF ${c.def} · SPD ${c.spd}`}</div>
     <div class="muted small">${esc(c.blurb)}</div>${extra}</div>`;
 }
 
 function miniCard(id: string, level?: number) {
   const glyph = SPELLS[id] ? "✦" : `${GLYPH[CARDS[id]?.kind ?? "pawn"]}\uFE0E`;
-  const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="">` : `<div class="g" style="color:${rarColor(id)}">${glyph}</div>`;
+  const art = `<div style="position:relative;height:44px"><div class="g" style="position:absolute;inset:0;color:${rarColor(id)}">${glyph}</div><img src="/assets/cards/${id}.png" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:44px;object-fit:contain"></div>`;
   return `<div class="cr-mc" style="border-color:${rarColor(id)}">${art}<div class="n">${esc(cardLabel(id))}</div><div class="l"><span class="cr-cost" style="width:16px;height:16px;font-size:10px">${costOf(id)}</span>${level ? ` Lv ${level}` : ""}</div></div>`;
 }
 
@@ -202,44 +232,140 @@ function deckStrip(d: Deck) {
     <div class="muted small" style="text-align:center">Deck cost <b style="color:${deckCost(d) > DECK_BUDGET ? "#ff5a52" : "#ecd28c"}">${deckCost(d)} / ${DECK_BUDGET}</b> · ${(d.spells ?? []).length}/${SPELL_LIMIT} spells</div>`;
 }
 
-function miniBoard() {
+function miniBoard(mine?: Deck, theirs?: Deck) {
   const back = ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"];
+  const cardFor = (kind: string, d?: Deck) => kind === "queen" || kind === "king" ? kind : d ? (d as unknown as Record<string, string>)[kind] ?? "" : "";
   let html = "";
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
     const bridge = BRIDGE_COLS.includes(x) && (y === 3 || y === 4);
     const bg = isWater(x, y) ? COLORS.terrain.water : bridge ? "#8a5a33" : (x + y) % 2 === 0 ? "#a9c77e" : "#87a85f";
-    const kind = y === 0 || y === 7 ? back[x] : y === 1 || y === 6 ? "pawn" : "";
+    const kind = y === 0 || y === 7 ? back[x]! : y === 1 || y === 6 ? "pawn" : "";
     const col = y < 2 ? COLORS.team.npc : COLORS.team.player;
-    html += `<div style="background:${bg}">${kind ? `<span style="color:${col};text-shadow:0 0 2px #000">${GLYPH[kind]}\uFE0E</span>` : ""}</div>`;
+    const id = kind ? (kind === "king" ? kingArt(y >= 2) : cardFor(kind, y < 2 ? theirs : mine)) : "";
+    html += `<div style="background:${bg};position:relative">${kind ? `<span style="color:${col};text-shadow:0 0 2px #000">${GLYPH[kind]}\uFE0E</span>${id ? `<img src="/assets/cards/${id}.png" alt="" onerror="this.remove()" style="position:absolute;inset:7%;width:86%;height:86%;object-fit:contain;border-radius:50%;background:${col};box-shadow:0 0 0 2px ${y < 2 ? "#fff" : "#c9a24a"};${y < 2 ? "transform:scaleX(-1);" : ""}">` : ""}` : ""}</div>`;
   }
   return `<div class="cr-mini">${html}</div>`;
 }
 
 // ---------- Home shell ----------
+async function authMe(): Promise<"ok" | "invalid" | "offline"> {
+  const tk = token();
+  if (!tk) return "invalid";
+  try {
+    const r = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${tk}` } });
+    if (r.status === 401) return "invalid";
+    if (!r.ok) return "offline";
+    const j = await r.json() as { player?: string };
+    if (j.player) setPlayerId(j.player);
+    return "ok";
+  } catch { return "offline"; }
+}
+
 export async function chessScreen() {
   loadSprites();
   injectStyle();
   app().innerHTML = `<div class="screen">${topbar("Chess RPG")}<p class="muted" style="padding:20px">Loading your collection…</p></div>`;
+  const me = await authMe();
+  if (me === "invalid") kv.set("tg.token", null);
+  if (!token() && kv.get("tg.guest") !== "1") { authScreen(); return; }
   profile = await loadProfile();
   shell(tab);
+}
+
+function authScreen(msg = "") {
+  const inp = "width:100%;box-sizing:border-box;margin:6px 0;padding:10px;border-radius:8px;border:1px solid rgba(201,162,74,.5);background:rgba(10,14,30,.8);color:#eee;font:inherit";
+  app().innerHTML = `<div class="cr-shell" style="justify-content:center;align-items:center">
+    <div class="panel" style="width:min(400px,92vw);text-align:center;padding:22px">
+      <h2 class="cr-h" style="font-size:28px">Chess RPG</h2>
+      <p class="cr-sub">Sign in to keep your cards, gems and trophies on any device.</p>
+      <input id="au-name" placeholder="Name (3-32 letters, numbers, _ or -)" autocomplete="username" style="${inp}">
+      <input id="au-pass" type="password" placeholder="Password (4+ characters)" autocomplete="current-password" style="${inp}">
+      <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" id="au-login">Log in</button><button class="btn" id="au-reg">Register</button></div>
+      <p class="small" id="au-msg" style="color:#ff8a80;min-height:1.2em">${esc(msg)}</p>
+      <button class="btn sm" id="au-guest">Play as guest</button>
+      <p class="muted small">Guest progress is saved under "${esc(playerId())}".</p>
+    </div></div>`;
+  const submit = async (kind: "login" | "register") => {
+    const player = $<HTMLInputElement>("au-name").value.trim(), password = $<HTMLInputElement>("au-pass").value;
+    $("au-msg").style.color = "#98a1b6"; $("au-msg").textContent = kind === "login" ? "Signing in…" : "Creating account…";
+    try {
+      const r = await fetch(`/api/auth/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ player, password }) });
+      const j = await r.json().catch(() => ({})) as { token?: string; player?: string; error?: string };
+      if (!r.ok || !j.token) { $("au-msg").style.color = "#ff8a80"; $("au-msg").textContent = j.error ?? `Failed (${r.status})`; return; }
+      kv.set("tg.token", j.token); kv.set("tg.guest", null); setPlayerId(j.player ?? player);
+      profile = await loadProfile();
+      shell("arena");
+    } catch { $("au-msg").style.color = "#ff8a80"; $("au-msg").textContent = "Server unreachable. Play as guest, or start the API server."; }
+  };
+  $("au-login").onclick = () => void submit("login");
+  $("au-reg").onclick = () => void submit("register");
+  $("au-pass").addEventListener("keydown", e => { if (e.key === "Enter") void submit("login"); });
+  $("au-guest").onclick = async () => { kv.set("tg.guest", "1"); profile = await loadProfile(); shell("arena"); };
+  $<HTMLInputElement>("au-name").focus();
+}
+
+function settingsPane() {
+  const el = $("pane-settings");
+  const p = profile!;
+  const signed = !!token();
+  const pr = prefs();
+  const c = p.collection;
+  el.innerHTML = `<h2 class="cr-h">Settings</h2><p class="cr-sub">Profile and configuration</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;max-width:880px;margin:0 auto">
+      <div class="panel"><h3>👤 Profile</h3>
+        <p>${signed ? `Signed in as <b>${esc(p.player)}</b>` : `Playing as guest <b>${esc(p.player)}</b>`}</p>
+        <div class="muted small">Your King (also your profile icon)</div>
+        <div class="row" style="margin:6px 0 10px">${AVATARS.map(a => `<button class="btn sm ${a === avatar() ? "primary" : ""}" data-av="${a}" style="padding:4px 6px;display:flex;flex-direction:column;align-items:center"><img src="/assets/cards/king_${a}.png" alt="${a}" style="width:52px;height:52px;object-fit:contain"><span class="small">${cap(a)}</span></button>`).join("")}</div>
+        <p class="muted small">${online ? "Progress is saved to MongoDB." : "Offline: progress is saved on this device."}</p>
+        <div class="stats"><span>Wins</span><span>${c.wins}</span><span>Losses</span><span>${c.losses}</span><span>Chests</span><span>${c.chests}</span><span>Ladder</span><span>${p.ladderCleared} / ${LADDER.length}</span><span>Trophies</span><span>${p.trophies}</span></div>
+        <div class="row" style="margin-top:10px">${signed ? `<button class="btn" id="st-logout">Log out</button>` : `<button class="btn primary" id="st-login">Log in / Register</button>`}</div>
+      </div>
+      <div class="panel"><h3>🎛 Configuration</h3>
+        <label class="field">Enemy move speed <input type="range" id="st-speed" min="150" max="1200" step="50" value="${1350 - pr.speed}"></label>
+        <p class="muted small" id="st-speedv">${pr.speed} ms per enemy move</p>
+        <label class="field" style="margin-top:8px"><input type="checkbox" id="st-hover" ${pr.hover ? "checked" : ""}> Preview moves when the cursor is on a piece</label>
+        <p class="muted small" style="margin-top:10px">Ask the Coach uses the Luminal model when the API server has a key, otherwise the built-in engine.</p>
+      </div>
+      <div class="panel"><h3>🧪 AI Lab</h3>
+        <p class="muted small">The agent team behind the game: Coach personas improving battle playbooks over generations, with learning curves, Gen vs Gen replays and held-out results.</p>
+        <button class="btn" data-go="classic">Open AI Lab</button>
+      </div>
+    </div>`;
+  el.querySelectorAll<HTMLElement>("[data-av]").forEach(b => b.addEventListener("click", () => {
+    kv.set("tg.avatar", b.dataset.av!);
+    const img = document.getElementById("cr-av") as HTMLImageElement | null;
+    if (img) img.src = `/assets/cards/king_${avatar()}.png`;
+    settingsPane(); arenaPane();
+  }));
+  document.getElementById("st-logout")?.addEventListener("click", async () => {
+    await call("/api/auth/logout", {});
+    kv.set("tg.token", null); kv.set("tg.guest", null); setPlayerId("player1");
+    void chessScreen();
+  });
+  document.getElementById("st-login")?.addEventListener("click", () => { kv.set("tg.guest", null); authScreen(); });
+  $<HTMLInputElement>("st-speed").oninput = e => {
+    const v = 1350 - Number((e.target as HTMLInputElement).value);
+    kv.set("tg.speed", String(v)); $("st-speedv").textContent = `${v} ms per enemy move`;
+  };
+  $<HTMLInputElement>("st-hover").onchange = e => kv.set("tg.hover", (e.target as HTMLInputElement).checked ? "on" : "off");
 }
 
 function shell(start: Tab) {
   const p = profile!;
   app().innerHTML = `<div class="cr-shell">
-    <header class="cr-top"><span class="who">${esc(p.player)}</span><span class="chip" style="color:var(--gold)" id="crtro">🏆 ${p.trophies}</span>
-      <span id="crgems">${gemsChip()}</span><div class="spacer" style="flex:1"></div><button class="btn sm" data-go="classic" title="Agent training: curves, Gen vs Gen, replays">🧪 AI Lab</button>${modeChip()}</header>
+    <header class="cr-top"><img id="cr-av" src="/assets/cards/king_${avatar()}.png" alt="" onerror="this.remove()" style="width:36px;height:36px;object-fit:contain;border-radius:50%;cursor:pointer" title="Change in Settings"><span class="who">${esc(p.player)}</span><span class="chip" style="color:var(--gold)" id="crtro">🏆 ${p.trophies}</span>
+      <span id="crgems">${gemsChip()}</span><div class="spacer" style="flex:1"></div><span class="chip">${token() ? "🔒 Signed in" : "Guest"}</span>${modeChip()}</header>
     <main class="cr-panes" id="panes">${TABS.map(t => `<section class="cr-pane" id="pane-${t.id}"></section>`).join("")}</main>
     <nav class="cr-nav" id="crnav">${TABS.map(t => `<button data-tab="${t.id}"><span>${t.icon}</span><small>${t.label}</small></button>`).join("")}</nav>
   </div>`;
-  shopPane(); cardsPane(); arenaPane(); void rankPane();
+  shopPane(); cardsPane(); arenaPane(); void rankPane(); settingsPane();
   bindGo();
   const panes = $("panes");
   const idx = (t: Tab) => TABS.findIndex(x => x.id === t);
   const setActive = (t: Tab) => {
     tab = t;
     try { localStorage.setItem("tg.tab", t); } catch { /* ignore */ }
-    $("crnav").querySelectorAll<HTMLElement>("button").forEach(b => b.classList.toggle("active", b.dataset.tab === t));
+    document.getElementById("crnav")?.querySelectorAll<HTMLElement>("button").forEach(b => b.classList.toggle("active", b.dataset.tab === t));
   };
   const goTab = (t: Tab, smooth = true) => { panes.scrollTo({ left: idx(t) * panes.clientWidth, behavior: smooth ? "smooth" : "auto" }); setActive(t); };
   $("crnav").querySelectorAll<HTMLElement>("button").forEach(b => b.addEventListener("click", () => goTab(b.dataset.tab as Tab)));
@@ -277,9 +403,13 @@ function arenaPane() {
   el.innerHTML = `
     <h2 class="cr-h">River Arena</h2>
     <p class="cr-sub">Chess, but your knights, bishops and rooks are RPG heroes.</p>
-    ${miniBoard()}
+    ${miniBoard(deckWithLevels(p.collection), nl.deck)}
+    <div style="display:flex;justify-content:center;gap:18px;margin-top:-4px" class="muted small"><span><b style="color:${COLORS.team.npc}">●</b> Next: ${esc(nl.name)}</span><span><b style="color:${COLORS.team.player}">●</b> You</span></div>
     <div style="text-align:center" class="muted small">Your battle deck</div>
     ${deckStrip(deckWithLevels(p.collection))}
+    <div class="cr-hero" style="display:flex;justify-content:center;margin:6px 0 -6px">
+      <img src="/assets/cards/king_${avatar()}_full.png" alt="" onerror="this.parentElement.remove()" style="height:230px;object-fit:contain;filter:drop-shadow(0 0 18px rgba(201,162,74,.55))">
+    </div>
     <div class="cr-modes">
       <div class="panel cr-mode">
         <h3>⚔️ Multiplayer</h3>
@@ -476,7 +606,7 @@ async function rankPane() {
       <div><div class="stat-big">🏆 ${p.trophies}</div><div class="muted small">trophies</div></div>
       <div><div class="stat-big">${c.wins}–${c.losses}</div><div class="muted small">wins–losses</div></div>
       <div><div class="stat-big">${p.ladderCleared}/${LADDER.length}</div><div class="muted small">ladder cleared</div></div>
-      <div><div class="stat-big">${c.chests}</div><div class="muted small">chests opened</div></div>
+      <div>${ico("chest", 40, "📦")}<div class="stat-big">${c.chests}</div><div class="muted small">chests opened</div></div>
     </div>
     <div class="panel" style="max-width:640px;margin:0 auto"><h3>Leaderboard</h3><ol class="log" id="lb"><li class="muted">${online ? "Loading…" : "Needs the API server"}</li></ol></div>`;
   if (!online) return;
@@ -494,6 +624,8 @@ function battle(m: Match) {
   const foe: Side = me === "P" ? "E" : "P";
   const flip = me === "E";
   let s: ChessState = m.state ?? createChess(deckWithLevels(p.collection), m.enemy!);
+  const iAmWhite = m.mode === "pvp" ? me === "P" : Math.random() < 0.5;
+  if (m.mode !== "pvp" && !m.state && !iAmWhite) s.turn = foe;
   let seq = m.seq ?? 0;
   let sel: string | null = null;
   let busy = false;
@@ -529,6 +661,21 @@ function battle(m: Match) {
       </div>
     </div></div>`;
   bindGo();
+  {
+    const mine = `king_${avatar()}_full`;
+    const theirs = kingArt(false) + "_full";
+    const vs = document.createElement("div");
+    vs.className = "cr-modal";
+    vs.style.cssText += ";background:radial-gradient(circle,rgba(20,28,56,.95),rgba(5,8,18,.98));transition:opacity .35s";
+    vs.innerHTML = `<div style="display:flex;align-items:center;gap:4vw">
+      <img src="/assets/cards/${mine}.png" alt="" onerror="this.style.visibility='hidden'" style="height:min(46vh,360px);filter:drop-shadow(0 0 22px ${COLORS.team.player})">
+      <div style="text-align:center"><div class="cr-vs" style="font-size:64px">VS</div><div class="muted">${esc(m.title)}</div><div style="margin-top:8px;font-size:20px">${iAmWhite ? "⚪ You play White · you move first" : "⚫ You play Black · they move first"}</div></div>
+      <img src="/assets/cards/${theirs}.png" alt="" onerror="this.style.visibility='hidden'" style="height:min(46vh,360px);transform:scaleX(-1);filter:drop-shadow(0 0 22px ${COLORS.team.npc})">
+    </div>`;
+    document.body.appendChild(vs);
+    window.setTimeout(() => { vs.style.opacity = "0"; }, 1300);
+    window.setTimeout(() => vs.remove(), 1700);
+  }
 
   const canvas = $<HTMLCanvasElement>("cboard");
   const size = W * TILE, dpr = window.devicePixelRatio || 1;
@@ -598,7 +745,7 @@ function battle(m: Match) {
     const selP = sel ? byIdC(s, sel) : undefined;
     if (mode === "target" && choice && selP?.alive) range(selP, true, choice.acts);
     else if (selP?.alive) range(selP, true);
-    else { const under = pieceAt(s, cursor.x, cursor.y); if (under) range(under, false); }
+    else if (prefs().hover) { const under = pieceAt(s, cursor.x, cursor.y); if (under) range(under, false); }
     if (hint) {
       const hp = byIdC(s, hint.pieceId);
       c.strokeStyle = COLORS.gold; c.lineWidth = 4; c.setLineDash([6, 4]);
@@ -635,12 +782,14 @@ function battle(m: Match) {
 
   const piece = (pc: Piece) => {
     const cx = SX(pc.x) + TILE / 2, cy = SY(pc.y) + TILE / 2 - 3, r = TILE * 0.36;
-    c.fillStyle = pc.side === me ? COLORS.team.player! : COLORS.team.npc!;
+    const isWhite = (pc.side === me) === iAmWhite;
+    c.fillStyle = isWhite ? "#f4efe4" : "#23262e";
     c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = sel === pc.id ? COLORS.cursor : pc.side === me ? COLORS.gold : "#fff"; c.lineWidth = sel === pc.id ? 4 : 2; c.stroke();
-    if (spriteOk(pc.card)) c.drawImage(sprites[pc.card]!, cx - r, cy - r, r * 2, r * 2);
+    c.strokeStyle = sel === pc.id ? COLORS.cursor : pc.side === me ? COLORS.gold : "#e0524b"; c.lineWidth = sel === pc.id ? 4 : 3; c.stroke();
+    const artId = pc.kind === "king" ? kingArt(pc.side === me) : pc.card;
+    if (spriteOk(artId)) c.drawImage(sprites[artId]!, cx - r, cy - r, r * 2, r * 2);
     else {
-      c.fillStyle = "#fff"; c.font = `${Math.round(TILE * 0.46)}px "Apple Symbols", "Segoe UI Symbol", serif`;
+      c.fillStyle = isWhite ? "#23262e" : "#f4efe4"; c.font = `${Math.round(TILE * 0.46)}px "Apple Symbols", "Segoe UI Symbol", serif`;
       c.textAlign = "center"; c.textBaseline = "middle";
       c.fillText(GLYPH[pc.kind] + "\uFE0E", cx, cy + 1);
     }
@@ -693,8 +842,9 @@ function battle(m: Match) {
     if (!pc) { $("info").innerHTML = `<h3>Piece</h3><p class="muted small">Select one of your pieces.</p><div class="tags">${aura}</div>`; return; }
     const cd = CARDS[pc.card]!;
     const r = pc.hp / pc.maxHp;
-    const portrait = spriteOk(pc.card)
-      ? `<img src="/assets/cards/${pc.card}.png" alt="" style="width:88px;height:88px;object-fit:contain;border-radius:12px;background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">`
+    const artId = pc.kind === "king" ? kingArt(pc.side === me) : pc.card;
+    const portrait = spriteOk(artId)
+      ? `<img src="/assets/cards/${artId}.png" alt="" style="width:88px;height:88px;object-fit:contain;border-radius:12px;background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">`
       : `<div style="width:88px;height:88px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:56px;color:#fff;background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">${GLYPH[pc.kind]}\uFE0E</div>`;
     const skills = skillsOf(pc).map(k => `<li style="opacity:${k.ready ? 1 : 0.5}"><b style="color:${k.color ?? (k.ready ? "#ecd28c" : "#98a1b6")}">${esc(k.name)}</b><div class="muted small">${esc(k.desc)}</div></li>`).join("");
     const nActs = pc.side === me && s.turn === me ? pieceActions(s, pc).length : 0;
@@ -705,7 +855,7 @@ function battle(m: Match) {
       <div><div class="uname">${esc(cd.name)} · Lv ${pc.level}</div><div class="muted small">${pc.kind} · ${pc.weapon} · ${pc.body}</div></div></div>
       ${pc.kind === "queen" ? `<p class="small">Strikes left: ${pc.charges}</p>` : `<div class="hpbar"><div style="width:${r * 100}%;background:${r > 0.6 ? COLORS.hpGood : r > 0.3 ? COLORS.hpMid : COLORS.hpLow}"></div></div>
       <div class="muted small">HP ${pc.hp} / ${pc.maxHp}</div>
-      <div class="stats"><span>ATK</span><span>${pc.atk}</span><span>MAG</span><span>${pc.mag}</span><span>DEF</span><span>${pc.def}</span><span>RES</span><span>${pc.res}</span><span>SPD</span><span>${pc.spd}</span></div>`}
+      ${pc.kind === "pawn" ? `<div class="stats"><span>Weapon</span><span>${pc.weapon}</span><span>Damage</span><span>6 fixed</span></div>` : `<div class="stats"><span>ATK</span><span>${pc.atk}</span><span>MAG</span><span>${pc.mag}</span><span>DEF</span><span>${pc.def}</span><span>RES</span><span>${pc.res}</span><span>SPD</span><span>${pc.spd}</span></div>`}`}
       <p class="muted small">${esc(cd.blurb)}</p><div class="tags">${aura}</div>`;
   };
 
@@ -731,12 +881,12 @@ function battle(m: Match) {
   };
 
   const hud = () => {
-    $("turninfo").textContent = s.winner ? "Game over" : `Turn ${Math.floor(s.ply / 2) + 1} · ${s.turn === me ? "Your move" : m.mode === "pvp" ? "Opponent's move…" : "Enemy thinking…"}`;
+    $("turninfo").textContent = (iAmWhite ? "⚪ You: White · " : "⚫ You: Black · ") + (s.winner ? "Game over" : `Turn ${Math.floor(s.ply / 2) + 1} · ${s.turn === me ? "Your move" : m.mode === "pvp" ? "Opponent's move…" : "Enemy thinking…"}`);
     const myTurn = s.turn === me && !busy && !s.winner;
     $("spellbar").innerHTML = s.spells[me].map(id => {
       const sp = SPELLS[id]!, used = s.used[me].includes(id), ok = myTurn && !used && spellActs(id).length > 0;
       const note = used ? "used" : s.kingCd[me] > 0 ? `cd ${s.kingCd[me]}` : `${spellPower(s, me, id)}`;
-      return `<button class="btn sm cr-spell ${choice?.key === `spell:${id}` ? "on" : ""}" data-spell="${id}" ${ok ? "" : "disabled"} title="${esc(sp.blurb)}" style="border-color:${rarColor(id)};color:${rarColor(id)}">✦ ${esc(sp.name)} <span class="muted small">${note}</span></button>`;
+      return `<button class="btn sm cr-spell ${choice?.key === `spell:${id}` ? "on" : ""}" data-spell="${id}" ${ok ? "" : "disabled"} title="${esc(sp.blurb)}" style="border-color:${rarColor(id)};color:${rarColor(id)}">${ico(id, 22)}${esc(sp.name)} <span class="muted small">${note}</span></button>`;
     }).join("") || `<span class="muted small">none equipped</span>`;
     $("spellbar").querySelectorAll<HTMLElement>("[data-spell]").forEach(b => b.addEventListener("click", () => {
       const k = myKing();
@@ -821,7 +971,7 @@ function battle(m: Match) {
     panel.style.cssText = "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:50;max-width:760px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)";
     panel.innerHTML = `<h3>${won ? "Victory!" : s.winner === "draw" ? "Draw" : "Defeat"}${r.firstClear ? " · First clear ×3" : ""}</h3>
       <p>${r.gems ? `💎 +${r.gems} gems` : "No gems this time."}${r.trophies ? ` · 🏆 ${r.trophies > 0 ? "+" : ""}${r.trophies}` : ""}</p>
-      ${r.chest.length ? `<h4 class="sub-h">Chest · ${r.chest.length} cards</h4><div id="chest" style="display:flex;gap:8px;flex-wrap:wrap"></div>` : m.mode === "pvp" ? "" : `<p class="muted small">Win to earn a chest of 5 cards.</p>`}
+      ${r.chest.length ? `<h4 class="sub-h">${ico("chest", 32, "📦")}Chest · ${r.chest.length} cards</h4><div id="chest" style="display:flex;gap:8px;flex-wrap:wrap"></div>` : m.mode === "pvp" ? "" : `<p class="muted small">Win to earn a chest of 5 cards.</p>`}
       <div class="row" style="margin-top:12px">${m.mode === "pvp" ? "" : `<button class="btn primary" id="again">Rematch</button>`}<button class="btn" id="tohome">Home</button><button class="btn" id="todeck">Cards</button></div>`;
     app().appendChild(panel);
     const chestEl = document.getElementById("chest");
@@ -840,7 +990,7 @@ function battle(m: Match) {
       if (a) showFx(applyChess(s, a));
       busy = false; hud();
       if (s.winner) void finish();
-    }, 550));
+    }, prefs().speed));
   };
 
   const play = async (a: ChessAction) => {
@@ -935,6 +1085,7 @@ function battle(m: Match) {
   };
 
   setCleanup(() => { window.removeEventListener("keydown", onKey); timers.forEach(t => { window.clearTimeout(t); window.clearInterval(t); }); });
+  if (m.mode !== "pvp" && s.turn !== me && !s.winner) timers.push(window.setTimeout(() => enemyTurn(), 1500));
   { const k = myKing(); if (k) cursor = { x: k.x, y: k.y }; }
   hud();
   requestAnimationFrame(draw);

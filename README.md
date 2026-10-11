@@ -129,4 +129,4 @@ the hackathon.
 ## Team
 
 - **Yoojun Kim**: game engine, rules, NPCs, runner, MongoDB integration, viewer, Solo mode, adaptive rival
-- **cucu071212**: agent team (Coach personas, Quartermaster), generation loop, experiments, reports
+- **Jonghun Won**: agent team (Coach personas, Quartermaster), generation loop, experiments, reports

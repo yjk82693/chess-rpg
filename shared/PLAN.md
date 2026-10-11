@@ -199,3 +199,37 @@ Keep everything runnable from the command line."
   attacking); the engine already supports it.
 - No shops on the map today. The Battle Prep screen shows the shop and each
   unit's inventory.
+
+## 12. Amendment (13:50): Adaptive rival (Solo mode)
+Humans play Solo Battle in the viewer. game/src/server.ts saves each finished
+battle and serves the newest rival playbook. Run it with: cd game && npm run server
+
+Saved human battles (collection battles):
+  run_id "rival-<player>", condition "adaptive", split "human", player,
+  generation (rival generation that played it; 0 = base AI),
+  playbook_id (rival playbook used, null for base AI), party,
+  map_id, npc_id (base army/personality), seed,
+  winner ("player" = the HUMAN won, "npc" = the rival won), reason, turns,
+  score (human's perspective), summary (5.5, "own"/"player" = the human), events.
+
+Rival Coach (new script, e.g. agents/rival.py --player <id> [--watch]):
+  - Read that player's battles {run_id: "rival-<player>", split: "human"}, newest
+    first. Use summary.notes, deaths, reactions, hp_lead_by_turn to describe the
+    human's habits (e.g. "leaves mage exposed", "turtles on forts", "rushes
+    cavalry", "never uses fire on forest").
+  - Write ONE new playbook doc per update:
+      { run_id: "rival-<player>", generation: last + 1, condition: "adaptive",
+        side: "npc", persona: "rival", parent_id: previous rival playbook or null,
+        playbook: <5.1 schema>, rationale: "<which habit it counters>",
+        created_at }
+  - Perspective flip: the rival wants the human to LOSE. Counter their notes,
+    e.g. exposed mage -> target_priority starts with "mage"; fort turtling ->
+    use_fire_on_forest + focus_fire; cavalry rush -> turtle formation.
+  - Same pydantic validation as 5.1. Never write side "player" docs here.
+  - Watch mode: poll every ~10 s; after each new human battle, write the next
+    rival playbook (or after every 2 battles to reduce noise).
+
+The viewer fetches the newest {run_id: "rival-<player>", side: "npc"} playbook
+before each Solo battle; the NPC army plays it. No runner call needed.
+Default player id is "player1" (changeable in the viewer). A test rival gen 1
+already exists for player1; the real script should continue from generation 2.

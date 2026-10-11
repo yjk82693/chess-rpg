@@ -121,7 +121,7 @@ shared/   PLAN.md: the shared contract between game and agents
 
 Game rules, classes, attributes, terrain, and UI flow are adapted from Yoojun's
 own SRPG design docs (the "Purifier" project): weapon triangle, magic
-effectiveness by class, attribute marks and elemental responses, fort healing,
+effectiveness by class, attribute marks and elemental reactions, fort healing,
 forest evasion and burning, and the Battle Prep and battle screen layouts.
 Story, nations, the boss action phase, and 5 of the 8 attributes were cut for
 the hackathon.

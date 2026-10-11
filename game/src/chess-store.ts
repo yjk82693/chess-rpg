@@ -21,7 +21,7 @@ async function saveProfile(db: Db, p: ChessProfile) {
   await players(db).updateOne({ player: p.player }, { $set: { collection: p.collection, ladderCleared: p.ladderCleared, trophies: p.trophies, updatedAt: p.updatedAt } }, { upsert: true });
 }
 
-export interface ResultInput { player: string; mode: "ladder" | "ghost" | "free"; level?: number; opponent?: string; won: boolean; plies: number; }
+export interface ResultInput { player: string; mode: "ladder" | "ghost" | "free" | "pvp"; level?: number; opponent?: string; won: boolean; plies: number; }
 export interface ResultOutput { profile: ChessProfile; gems: number; chest: ChestDraw[]; firstClear: boolean; trophies: number; }
 
 export async function recordChessResult(db: Db, r: ResultInput): Promise<ResultOutput> {
@@ -31,7 +31,7 @@ export async function recordChessResult(db: Db, r: ResultInput): Promise<ResultO
   const chest = recordResult(p.collection, r.won);
   p.collection.gems += gems;
   if (firstClear) p.ladderCleared = r.level!;
-  const trophies = r.mode === "ghost" ? (r.won ? 30 : -15) : 0;
+  const trophies = r.mode === "ghost" || r.mode === "pvp" ? (r.won ? 30 : -15) : 0;
   p.trophies = Math.max(0, p.trophies + trophies);
   await saveProfile(db, p);
   await matches(db).insertOne({ ...r, deck: p.collection.deck, gems, chest, firstClear, trophies, createdAt: new Date() });

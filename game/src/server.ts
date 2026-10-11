@@ -10,6 +10,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import { validatePlaybook } from "./executor.js";
 import { updateRival } from "./rival.js";
 import { chessRoute } from "./chess-routes.js";
+import { pvpRoute } from "./pvp.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, "../../.env"), quiet: true });
@@ -102,6 +103,9 @@ async function main() {
         const out = await chessRoute(req.method ?? "GET", url, () => readJson(req), db);
         if (out) return send(res, out.code, out.body);
       }
+
+      const pvpOut = await pvpRoute(req.method ?? "GET", url, () => readJson(req), db);
+      if (pvpOut) return send(res, pvpOut.code, pvpOut.body);
 
       send(res, 404, { error: "not found" });
     } catch (e) {

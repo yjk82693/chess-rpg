@@ -94,16 +94,16 @@ function menuScreen() {
 
 // ---------- Training Grounds ----------
 function drawSpark(canvas: HTMLCanvasElement, full: GenExport[], frozen: GenExport[], sel: number) {
-  const W = 270, H = 110, dpr = window.devicePixelRatio || 1;
+  const W = Math.max(320, (canvas.parentElement?.clientWidth ?? 600) - 30), H = 200, dpr = window.devicePixelRatio || 1;
   canvas.width = W * dpr; canvas.height = H * dpr;
   canvas.style.width = `${W}px`; canvas.style.height = `${H}px`;
   const c = canvas.getContext("2d")!;
   c.scale(dpr, dpr);
-  const pad = 14, n = Math.max(full.length, frozen.length, 2);
+  const pad = 34, n = Math.max(full.length, frozen.length, 2);
   const X = (i: number) => pad + (i * (W - 2 * pad)) / (n - 1);
   const Y = (v: number) => H - pad - v * (H - 2 * pad);
   c.strokeStyle = "rgba(201,162,74,0.18)"; c.lineWidth = 1;
-  c.font = "10px Inter, sans-serif"; c.fillStyle = "#98a1b6";
+  c.font = "13px Inter, sans-serif"; c.fillStyle = "#98a1b6";
   for (const v of [0, 0.5, 1]) {
     c.beginPath(); c.moveTo(pad, Y(v)); c.lineTo(W - pad, Y(v)); c.stroke();
     c.fillText(`${v * 100}%`, 0, Y(v) - 3);
@@ -111,12 +111,12 @@ function drawSpark(canvas: HTMLCanvasElement, full: GenExport[], frozen: GenExpo
   const series = (gs: GenExport[], color: string, dash: number[]) => {
     const pts = gs.filter(g => g.win_rate != null);
     if (!pts.length) return;
-    c.strokeStyle = color; c.lineWidth = 2; c.setLineDash(dash);
+    c.strokeStyle = color; c.lineWidth = 3; c.setLineDash(dash);
     c.beginPath();
     pts.forEach((g, i) => (i ? c.lineTo(X(g.generation), Y(g.win_rate!)) : c.moveTo(X(g.generation), Y(g.win_rate!))));
     c.stroke(); c.setLineDash([]);
     c.fillStyle = color;
-    for (const g of pts) { c.beginPath(); c.arc(X(g.generation), Y(g.win_rate!), 2.5, 0, Math.PI * 2); c.fill(); }
+    for (const g of pts) { c.beginPath(); c.arc(X(g.generation), Y(g.win_rate!), 4, 0, Math.PI * 2); c.fill(); }
   };
   series(frozen, "#7d8699", [4, 4]);
   series(full, "#ecd28c", []);
@@ -133,8 +133,6 @@ function trainingScreen() {
     ${topbar("Training Grounds", `<span class="muted">${S.run.sample ? "Sample data" : `Run ${esc(S.run.run_id)}`}</span>`)}
     <div class="training">
       <div class="panel"><h3>Generations</h3>
-        <canvas id="spark"></canvas>
-        <div class="legend-line"><span class="sw gold"></span>Full <span class="sw grey"></span>Frozen stats</div>
         <ul class="gen-list" id="genlist"></ul>
       </div>
       <div class="panel" id="gendetail"></div>
@@ -145,7 +143,6 @@ function trainingScreen() {
       <span class="g">Gen ${g.generation}</span><span>${pct(g.win_rate)} <span class="muted">· ${esc(g.best?.persona ?? "")}</span></span></li>`).join("");
     $("genlist").querySelectorAll<HTMLElement>("li").forEach(li =>
       li.addEventListener("click", () => { S.genIdx = Number(li.dataset.i); render(); }));
-    drawSpark($("spark") as HTMLCanvasElement, gs, frozenGens(S.run), S.genIdx);
     const g = curGen();
     const base = gs[0]?.win_rate ?? null;
     const delta = g.win_rate != null && base != null && g !== gs[0]
@@ -153,6 +150,8 @@ function trainingScreen() {
     const held = g.heldout
       ? `<div><div class="stat-big">${pct(g.heldout.win_rate)}</div><div class="muted">held-out win rate</div></div>` : "";
     $("gendetail").innerHTML = `<h3>Generation ${g.generation} · ${esc(g.best?.persona ?? "")}</h3>
+      <canvas id="spark"></canvas>
+      <div class="legend-line"><span class="sw gold"></span>Full <span class="sw grey"></span>Frozen stats</div>
       <div class="row stats-row">
         <div><div class="stat-big">${pct(g.win_rate)}</div><div class="muted">training win rate</div></div>
         <div><div class="stat-big">${g.avg_score?.toFixed(2) ?? "n/a"}</div><div class="muted">avg score</div></div>
@@ -167,6 +166,7 @@ function trainingScreen() {
         <button class="btn primary" data-go="battle">Watch a battle</button>
       </div>`;
     bindGo();
+    drawSpark($("spark") as HTMLCanvasElement, gs, frozenGens(S.run), S.genIdx);
   };
   render();
   bindGo();

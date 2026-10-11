@@ -44,7 +44,11 @@ python loop.py --run-id tg1 --no-seed-gen0 --coach llm --condition full --genera
 python loop.py --run-id demo1 --no-seed-gen0 --generations 1 --skip-llm
 
 # Charts + held-out table
-python report.py --run-id tg-mutate --out-dir output
+python report.py --run-id tg1 --out-dir ../shared --skip-bench
+
+# Demo video: 4 parallel coaches + rationales (dry-run, no Mongo writes)
+python demo_coaches.py --run-id tg1 --generation 1
+python demo_coaches.py --run-id tg1 --generation 1 --coach mutate   # no API
 ```
 
 ### Coach modes

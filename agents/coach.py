@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List, Literal, Optional
+import time
+from typing import Any, List, Literal, Optional
 
 CoachMode = Literal["llm", "mutate", "copy"]
 
@@ -83,7 +84,7 @@ def build_coach_user_payload(
     )
 
 
-async def _one_coach(
+async def _produce_coach_proposal(
     db: Database,
     *,
     run_id: str,
@@ -96,7 +97,7 @@ async def _one_coach(
     parent_win_rate: float,
     parent_avg_score: float,
     coach_mode: CoachMode,
-) -> ObjectId:
+) -> CoachProposal:
     system = (
         f"You are {persona}, a tactics coach for a turn-based grid SRPG. "
         "Improve the playbook so it wins more often. Output ONLY JSON matching the schema. "
@@ -118,7 +119,7 @@ async def _one_coach(
     )
     fallback = _fallback_proposal(parent, persona)
     if coach_mode == "llm":
-        proposal = await asyncio.to_thread(
+        return await asyncio.to_thread(
             call_with_retry_and_fallback,
             model=coach_model_name(),
             system=system,
@@ -127,15 +128,43 @@ async def _one_coach(
             schema=CoachProposal,
             fallback=fallback,
         )
-    elif coach_mode == "mutate":
-        proposal = mutate_proposal(
+    if coach_mode == "mutate":
+        return mutate_proposal(
             parent,
             persona,
             run_id=run_id,
             generation=generation,
         )
-    else:
-        proposal = fallback
+    return fallback
+
+
+async def _one_coach(
+    db: Database,
+    *,
+    run_id: str,
+    generation: int,
+    condition: Condition,
+    persona: str,
+    persona_hint: str,
+    parent: Playbook,
+    parent_id: ObjectId,
+    parent_win_rate: float,
+    parent_avg_score: float,
+    coach_mode: CoachMode,
+) -> ObjectId:
+    proposal = await _produce_coach_proposal(
+        db,
+        run_id=run_id,
+        generation=generation,
+        condition=condition,
+        persona=persona,
+        persona_hint=persona_hint,
+        parent=parent,
+        parent_id=parent_id,
+        parent_win_rate=parent_win_rate,
+        parent_avg_score=parent_avg_score,
+        coach_mode=coach_mode,
+    )
     return insert_playbook(
         db,
         run_id=run_id,
@@ -146,6 +175,56 @@ async def _one_coach(
         rationale=proposal.rationale,
         parent_id=parent_id,
     )
+
+
+async def _one_coach_timed(
+    db: Database,
+    *,
+    run_id: str,
+    generation: int,
+    condition: Condition,
+    persona: str,
+    persona_hint: str,
+    parent: Playbook,
+    parent_id: ObjectId,
+    parent_win_rate: float,
+    parent_avg_score: float,
+    coach_mode: CoachMode,
+    insert: bool,
+) -> tuple[Optional[ObjectId], float]:
+    """Run one coach; return (playbook_id or None, seconds)."""
+    t0 = time.monotonic()
+    playbook_id = await _one_coach(
+        db,
+        run_id=run_id,
+        generation=generation,
+        condition=condition,
+        persona=persona,
+        persona_hint=persona_hint,
+        parent=parent,
+        parent_id=parent_id,
+        parent_win_rate=parent_win_rate,
+        parent_avg_score=parent_avg_score,
+        coach_mode=coach_mode,
+    ) if insert else None
+    if not insert:
+        await _produce_coach_proposal(
+            db,
+            run_id=run_id,
+            generation=generation,
+            condition=condition,
+            persona=persona,
+            persona_hint=persona_hint,
+            parent=parent,
+            parent_id=parent_id,
+            parent_win_rate=parent_win_rate,
+            parent_avg_score=parent_avg_score,
+            coach_mode=coach_mode,
+        )
+    elapsed = time.monotonic() - t0
+    if insert:
+        return playbook_id, elapsed
+    return None, elapsed
 
 
 async def run_coaches_parallel(
@@ -162,8 +241,9 @@ async def run_coaches_parallel(
     personas: Optional[List[str]] = None,
 ) -> List[ObjectId]:
     names = personas or list(PERSONAS.keys())
+    wall_t0 = time.monotonic()
     tasks = [
-        _one_coach(
+        _one_coach_timed(
             db,
             run_id=run_id,
             generation=generation,
@@ -175,10 +255,189 @@ async def run_coaches_parallel(
             parent_win_rate=parent_win_rate,
             parent_avg_score=parent_avg_score,
             coach_mode=coach_mode,
+            insert=True,
         )
         for name in names
     ]
-    return list(await asyncio.gather(*tasks))
+    timed = await asyncio.gather(*tasks)
+    wall = time.monotonic() - wall_t0
+    ids = [t[0] for t in timed if t[0] is not None]
+    per = {names[i]: timed[i][1] for i in range(len(names))}
+    global _last_parallel_timing
+    _last_parallel_timing = {
+        "run_id": run_id,
+        "generation": generation,
+        "condition": condition,
+        "coach_mode": coach_mode,
+        "wall_seconds": wall,
+        "per_persona_seconds": per,
+        "sum_persona_seconds": sum(per.values()),
+        "speedup_vs_sequential": sum(per.values()) / wall if wall > 0 else 0.0,
+    }
+    return ids
+
+
+_last_parallel_timing: dict[str, Any] | None = None
+
+
+def get_last_parallel_coach_timing() -> dict[str, Any] | None:
+    return _last_parallel_timing
+
+
+async def benchmark_coaches_parallel(
+    db: Database,
+    *,
+    run_id: str,
+    generation: int,
+    condition: Condition,
+    parent_playbook: Playbook,
+    parent_id: ObjectId,
+    parent_win_rate: float,
+    parent_avg_score: float,
+    coach_mode: CoachMode = "llm",
+    personas: Optional[List[str]] = None,
+) -> dict[str, Any]:
+    """Dry-run 4 coaches in parallel; no new playbooks written."""
+    names = personas or list(PERSONAS.keys())
+    wall_t0 = time.monotonic()
+    tasks = [
+        _one_coach_timed(
+            db,
+            run_id=run_id,
+            generation=generation,
+            condition=condition,
+            persona=name,
+            persona_hint=PERSONAS[name],
+            parent=parent_playbook,
+            parent_id=parent_id,
+            parent_win_rate=parent_win_rate,
+            parent_avg_score=parent_avg_score,
+            coach_mode=coach_mode,
+            insert=False,
+        )
+        for name in names
+    ]
+    timed = await asyncio.gather(*tasks)
+    wall = time.monotonic() - wall_t0
+    per = {names[i]: timed[i][1] for i in range(len(names))}
+    return {
+        "run_id": run_id,
+        "generation": generation,
+        "condition": condition,
+        "coach_mode": coach_mode,
+        "dry_run": True,
+        "wall_seconds": wall,
+        "per_persona_seconds": per,
+        "sum_persona_seconds": sum(per.values()),
+        "speedup_vs_sequential": sum(per.values()) / wall if wall > 0 else 0.0,
+    }
+
+
+async def _one_coach_verbose(
+    db: Database,
+    *,
+    run_id: str,
+    generation: int,
+    condition: Condition,
+    persona: str,
+    persona_hint: str,
+    parent: Playbook,
+    parent_id: ObjectId,
+    parent_win_rate: float,
+    parent_avg_score: float,
+    coach_mode: CoachMode,
+    write: bool,
+) -> float:
+    print(f"[Coach] ▶ {persona} …", flush=True)
+    t0 = time.monotonic()
+    proposal = await _produce_coach_proposal(
+        db,
+        run_id=run_id,
+        generation=generation,
+        condition=condition,
+        persona=persona,
+        persona_hint=persona_hint,
+        parent=parent,
+        parent_id=parent_id,
+        parent_win_rate=parent_win_rate,
+        parent_avg_score=parent_avg_score,
+        coach_mode=coach_mode,
+    )
+    elapsed = time.monotonic() - t0
+    print(f"[Coach] ✓ {persona} ({elapsed:.1f}s)", flush=True)
+    print(f"       {proposal.rationale}", flush=True)
+    if write:
+        insert_playbook(
+            db,
+            run_id=run_id,
+            generation=generation,
+            condition=condition,
+            persona=persona,
+            playbook=proposal.to_playbook(),
+            rationale=proposal.rationale,
+            parent_id=parent_id,
+        )
+    return elapsed
+
+
+async def run_coaches_parallel_verbose(
+    db: Database,
+    *,
+    run_id: str,
+    generation: int,
+    condition: Condition,
+    parent_playbook: Playbook,
+    parent_id: ObjectId,
+    parent_win_rate: float,
+    parent_avg_score: float,
+    coach_mode: CoachMode = "llm",
+    personas: Optional[List[str]] = None,
+    write: bool = False,
+) -> None:
+    """Print each persona and rationale as they finish (for demo video)."""
+    names = personas or list(PERSONAS.keys())
+    print("=" * 60, flush=True)
+    print(f"Training Grounds · {len(names)} Coach personas in parallel", flush=True)
+    print(
+        f"run_id={run_id}  generation={generation}  condition={condition}  coach={coach_mode}",
+        flush=True,
+    )
+    print(
+        f"parent metrics: win_rate={parent_win_rate:.1%}  avg_score={parent_avg_score:.3f}",
+        flush=True,
+    )
+    print("=" * 60, flush=True)
+    wall_t0 = time.monotonic()
+    tasks = [
+        _one_coach_verbose(
+            db,
+            run_id=run_id,
+            generation=generation,
+            condition=condition,
+            persona=name,
+            persona_hint=PERSONAS[name],
+            parent=parent_playbook,
+            parent_id=parent_id,
+            parent_win_rate=parent_win_rate,
+            parent_avg_score=parent_avg_score,
+            coach_mode=coach_mode,
+            write=write,
+        )
+        for name in names
+    ]
+    per_persona = await asyncio.gather(*tasks)
+    wall = time.monotonic() - wall_t0
+    total = sum(per_persona)
+    print("-" * 60, flush=True)
+    print(
+        f"[Coach] All done · wall {wall:.1f}s parallel "
+        f"(~{total:.1f}s if run one-by-one)",
+        flush=True,
+    )
+    if write:
+        print("[Coach] Playbooks saved to MongoDB.", flush=True)
+    else:
+        print("[Coach] Dry-run only — no MongoDB writes.", flush=True)
 
 
 def load_playbook_doc(db: Database, playbook_id: ObjectId) -> Playbook:

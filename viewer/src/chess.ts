@@ -12,7 +12,7 @@ import { LADDER, ladderReward, recommendDecks, type DeckPick } from "../../game/
 import { candidates, describeAction } from "../../game/src/chess-hint.js";
 import { bindGo, esc, setCleanup, topbar } from "./screens.js";
 import { COLORS, TILE } from "./theme.js";
-import { playerId } from "./api.js";
+import { playerId, setPlayerId } from "./api.js";
 
 const STRIPE_LINK = "";
 const GLYPH: Record<string, string> = { pawn: "♟", knight: "♞", bishop: "♝", rook: "♜", queen: "♛", king: "♚" };
@@ -20,12 +20,13 @@ const ROLE_LABEL: Record<string, string> = { pawn: "Pawn card", knight: "Knight"
 const ROLES = ["pawn", "knight", "bishop", "rook"] as const;
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-type Tab = "shop" | "cards" | "arena" | "rank";
+type Tab = "shop" | "cards" | "arena" | "rank" | "settings";
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "shop", icon: "🛒", label: "Shop" },
   { id: "cards", icon: "🃏", label: "Cards" },
   { id: "arena", icon: "⚔️", label: "Battle" },
   { id: "rank", icon: "🏆", label: "Ranking" },
+  { id: "settings", icon: "⚙️", label: "Settings" },
 ];
 
 interface Profile { player: string; collection: Collection; ladderCleared: number; trophies: number; }
@@ -40,9 +41,15 @@ let profile: Profile | null = null;
 let online = false;
 let tab: Tab = "arena";
 try { tab = (localStorage.getItem("tg.tab") as Tab) || "arena"; } catch { /* ignore */ }
-if (!["shop", "cards", "arena", "rank"].includes(tab)) tab = "arena";
+if (!["shop", "cards", "arena", "rank", "settings"].includes(tab)) tab = "arena";
 const sprites: Record<string, HTMLImageElement> = {};
 const LOCAL_KEY = () => `tg.chess.${playerId()}`;
+const kv = {
+  get: (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* storage blocked */ } },
+};
+const token = () => kv.get("tg.token");
+const prefs = () => ({ speed: Number(kv.get("tg.speed") ?? "550") || 550, hover: kv.get("tg.hover") !== "off" });
 
 function loadSprites() {
   for (const id of Object.keys(CARDS)) {
@@ -56,8 +63,11 @@ const spriteOk = (id: string) => { const i = sprites[id]; return !!i && i.comple
 
 async function call<T>(url: string, body?: unknown): Promise<T | null> {
   try {
-    const r = await fetch(url, body === undefined ? undefined : {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    const headers: Record<string, string> = {};
+    const tk = token();
+    if (tk) headers.Authorization = `Bearer ${tk}`;
+    const r = await fetch(url, body === undefined ? { headers } : {
+      method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     if (!r.ok) return null;
     return (await r.json()) as T;
@@ -111,7 +121,7 @@ function injectStyle() {
   .cr-panes{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
   .cr-panes::-webkit-scrollbar{display:none}
   .cr-pane{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;overflow-y:auto;padding:16px;box-sizing:border-box}
-  .cr-nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(201,162,74,.35);background:rgba(10,14,30,.94)}
+  .cr-nav{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid rgba(201,162,74,.35);background:rgba(10,14,30,.94)}
   .cr-nav button{background:none;border:0;color:#98a1b6;padding:8px 0 10px;cursor:pointer;font:inherit;transition:transform .18s,color .18s}
   .cr-nav button span{display:block;font-size:26px;line-height:1.1}
   .cr-nav button small{font-size:12px;letter-spacing:.05em;text-transform:uppercase}
@@ -218,23 +228,109 @@ function miniBoard(mine?: Deck, theirs?: Deck) {
 }
 
 // ---------- Home shell ----------
+async function authMe(): Promise<"ok" | "invalid" | "offline"> {
+  const tk = token();
+  if (!tk) return "invalid";
+  try {
+    const r = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${tk}` } });
+    if (r.status === 401) return "invalid";
+    if (!r.ok) return "offline";
+    const j = await r.json() as { player?: string };
+    if (j.player) setPlayerId(j.player);
+    return "ok";
+  } catch { return "offline"; }
+}
+
 export async function chessScreen() {
   loadSprites();
   injectStyle();
   app().innerHTML = `<div class="screen">${topbar("Chess RPG")}<p class="muted" style="padding:20px">Loading your collection…</p></div>`;
+  const me = await authMe();
+  if (me === "invalid") kv.set("tg.token", null);
+  if (!token() && kv.get("tg.guest") !== "1") { authScreen(); return; }
   profile = await loadProfile();
   shell(tab);
+}
+
+function authScreen(msg = "") {
+  const inp = "width:100%;box-sizing:border-box;margin:6px 0;padding:10px;border-radius:8px;border:1px solid rgba(201,162,74,.5);background:rgba(10,14,30,.8);color:#eee;font:inherit";
+  app().innerHTML = `<div class="cr-shell" style="justify-content:center;align-items:center">
+    <div class="panel" style="width:min(400px,92vw);text-align:center;padding:22px">
+      <h2 class="cr-h" style="font-size:28px">Chess RPG</h2>
+      <p class="cr-sub">Sign in to keep your cards, gems and trophies on any device.</p>
+      <input id="au-name" placeholder="Name (3-32 letters, numbers, _ or -)" autocomplete="username" style="${inp}">
+      <input id="au-pass" type="password" placeholder="Password (4+ characters)" autocomplete="current-password" style="${inp}">
+      <div class="row" style="justify-content:center;margin-top:10px"><button class="btn primary" id="au-login">Log in</button><button class="btn" id="au-reg">Register</button></div>
+      <p class="small" id="au-msg" style="color:#ff8a80;min-height:1.2em">${esc(msg)}</p>
+      <button class="btn sm" id="au-guest">Play as guest</button>
+      <p class="muted small">Guest progress is saved under "${esc(playerId())}".</p>
+    </div></div>`;
+  const submit = async (kind: "login" | "register") => {
+    const player = $<HTMLInputElement>("au-name").value.trim(), password = $<HTMLInputElement>("au-pass").value;
+    $("au-msg").style.color = "#98a1b6"; $("au-msg").textContent = kind === "login" ? "Signing in…" : "Creating account…";
+    try {
+      const r = await fetch(`/api/auth/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ player, password }) });
+      const j = await r.json().catch(() => ({})) as { token?: string; player?: string; error?: string };
+      if (!r.ok || !j.token) { $("au-msg").style.color = "#ff8a80"; $("au-msg").textContent = j.error ?? `Failed (${r.status})`; return; }
+      kv.set("tg.token", j.token); kv.set("tg.guest", null); setPlayerId(j.player ?? player);
+      profile = await loadProfile();
+      shell("arena");
+    } catch { $("au-msg").style.color = "#ff8a80"; $("au-msg").textContent = "Server unreachable. Play as guest, or start the API server."; }
+  };
+  $("au-login").onclick = () => void submit("login");
+  $("au-reg").onclick = () => void submit("register");
+  $("au-pass").addEventListener("keydown", e => { if (e.key === "Enter") void submit("login"); });
+  $("au-guest").onclick = async () => { kv.set("tg.guest", "1"); profile = await loadProfile(); shell("arena"); };
+  $<HTMLInputElement>("au-name").focus();
+}
+
+function settingsPane() {
+  const el = $("pane-settings");
+  const p = profile!;
+  const signed = !!token();
+  const pr = prefs();
+  const c = p.collection;
+  el.innerHTML = `<h2 class="cr-h">Settings</h2><p class="cr-sub">Profile and configuration</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;max-width:880px;margin:0 auto">
+      <div class="panel"><h3>👤 Profile</h3>
+        <p>${signed ? `Signed in as <b>${esc(p.player)}</b>` : `Playing as guest <b>${esc(p.player)}</b>`}</p>
+        <p class="muted small">${online ? "Progress is saved to MongoDB." : "Offline: progress is saved on this device."}</p>
+        <div class="stats"><span>Wins</span><span>${c.wins}</span><span>Losses</span><span>${c.losses}</span><span>Chests</span><span>${c.chests}</span><span>Ladder</span><span>${p.ladderCleared} / ${LADDER.length}</span><span>Trophies</span><span>${p.trophies}</span></div>
+        <div class="row" style="margin-top:10px">${signed ? `<button class="btn" id="st-logout">Log out</button>` : `<button class="btn primary" id="st-login">Log in / Register</button>`}</div>
+      </div>
+      <div class="panel"><h3>🎛 Configuration</h3>
+        <label class="field">Enemy move speed <input type="range" id="st-speed" min="150" max="1200" step="50" value="${1350 - pr.speed}"></label>
+        <p class="muted small" id="st-speedv">${pr.speed} ms per enemy move</p>
+        <label class="field" style="margin-top:8px"><input type="checkbox" id="st-hover" ${pr.hover ? "checked" : ""}> Preview moves when the cursor is on a piece</label>
+        <p class="muted small" style="margin-top:10px">Ask the Coach uses the Luminal model when the API server has a key, otherwise the built-in engine.</p>
+      </div>
+      <div class="panel"><h3>🧪 AI Lab</h3>
+        <p class="muted small">The agent team behind the game: Coach personas improving battle playbooks over generations, with learning curves, Gen vs Gen replays and held-out results.</p>
+        <button class="btn" data-go="classic">Open AI Lab</button>
+      </div>
+    </div>`;
+  document.getElementById("st-logout")?.addEventListener("click", async () => {
+    await call("/api/auth/logout", {});
+    kv.set("tg.token", null); kv.set("tg.guest", null); setPlayerId("player1");
+    void chessScreen();
+  });
+  document.getElementById("st-login")?.addEventListener("click", () => { kv.set("tg.guest", null); authScreen(); });
+  $<HTMLInputElement>("st-speed").oninput = e => {
+    const v = 1350 - Number((e.target as HTMLInputElement).value);
+    kv.set("tg.speed", String(v)); $("st-speedv").textContent = `${v} ms per enemy move`;
+  };
+  $<HTMLInputElement>("st-hover").onchange = e => kv.set("tg.hover", (e.target as HTMLInputElement).checked ? "on" : "off");
 }
 
 function shell(start: Tab) {
   const p = profile!;
   app().innerHTML = `<div class="cr-shell">
     <header class="cr-top"><span class="who">${esc(p.player)}</span><span class="chip" style="color:var(--gold)" id="crtro">🏆 ${p.trophies}</span>
-      <span id="crgems">${gemsChip()}</span><div class="spacer" style="flex:1"></div><button class="btn sm" data-go="classic" title="Agent training: curves, Gen vs Gen, replays">🧪 AI Lab</button>${modeChip()}</header>
+      <span id="crgems">${gemsChip()}</span><div class="spacer" style="flex:1"></div><span class="chip">${token() ? "🔒 Signed in" : "Guest"}</span>${modeChip()}</header>
     <main class="cr-panes" id="panes">${TABS.map(t => `<section class="cr-pane" id="pane-${t.id}"></section>`).join("")}</main>
     <nav class="cr-nav" id="crnav">${TABS.map(t => `<button data-tab="${t.id}"><span>${t.icon}</span><small>${t.label}</small></button>`).join("")}</nav>
   </div>`;
-  shopPane(); cardsPane(); arenaPane(); void rankPane();
+  shopPane(); cardsPane(); arenaPane(); void rankPane(); settingsPane();
   bindGo();
   const panes = $("panes");
   const idx = (t: Tab) => TABS.findIndex(x => x.id === t);
@@ -601,7 +697,7 @@ function battle(m: Match) {
     const selP = sel ? byIdC(s, sel) : undefined;
     if (mode === "target" && choice && selP?.alive) range(selP, true, choice.acts);
     else if (selP?.alive) range(selP, true);
-    else { const under = pieceAt(s, cursor.x, cursor.y); if (under) range(under, false); }
+    else if (prefs().hover) { const under = pieceAt(s, cursor.x, cursor.y); if (under) range(under, false); }
     if (hint) {
       const hp = byIdC(s, hint.pieceId);
       c.strokeStyle = COLORS.gold; c.lineWidth = 4; c.setLineDash([6, 4]);
@@ -843,7 +939,7 @@ function battle(m: Match) {
       if (a) showFx(applyChess(s, a));
       busy = false; hud();
       if (s.winner) void finish();
-    }, 550));
+    }, prefs().speed));
   };
 
   const play = async (a: ChessAction) => {

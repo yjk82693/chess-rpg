@@ -98,6 +98,28 @@ def insert_playbook(
     return result.inserted_id
 
 
+def units_to_mongo(units: list[dict]) -> list[dict]:
+    """TS runner: missing items => one vulnerary; items: [] => no items. Omit empty lists."""
+    out: list[dict] = []
+    for raw in units:
+        unit = dict(raw)
+        if not unit.get("items"):
+            unit.pop("items", None)
+        out.append(unit)
+    return out
+
+
+def units_from_mongo(units: list[dict]) -> list[dict]:
+    """Load: gen0 from game init often has no items key; avoid persisting items: []."""
+    out: list[dict] = []
+    for raw in units:
+        unit = dict(raw)
+        if not unit.get("items"):
+            unit["items"] = ["vulnerary"]
+        out.append(unit)
+    return out
+
+
 def insert_party(
     db: Database,
     *,
@@ -111,7 +133,7 @@ def insert_party(
         "run_id": run_id,
         "generation": generation,
         "condition": condition,
-        "units": payload["units"],
+        "units": units_to_mongo(payload["units"]),
         "cost": payload["cost"],
         "gold_spent": payload.get("gold_spent", 0),
     }

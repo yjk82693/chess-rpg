@@ -6,7 +6,7 @@ from typing import Optional
 
 from pymongo.database import Database
 
-from db import parties
+from db import parties, units_from_mongo
 from defaults import SHOP_BUDGET
 from llm import call_with_retry_and_fallback, qm_model_name
 from schemas import Condition, Party, party_for_frozen_stats
@@ -35,7 +35,7 @@ def party_from_previous_generation(
         return None
     return Party.model_validate(
         {
-            "units": doc["units"],
+            "units": units_from_mongo(doc["units"]),
             "cost": doc["cost"],
             "gold_spent": doc.get("gold_spent", 0),
         }

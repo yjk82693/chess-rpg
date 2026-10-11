@@ -13,7 +13,7 @@ export const GEM_PACKS = [
 ];
 
 export interface OwnedCard { unlocked: boolean; level: number; copies: number; }
-export interface Collection { cards: Record<string, OwnedCard>; gems: number; wins: number; losses: number; chests: number; deck: Deck; }
+export interface Collection { cards: Record<string, OwnedCard>; gems: number; wins: number; losses: number; chests: number; deck: Deck; stored?: number; lastChest?: ChestDraw[]; }
 export interface ChestDraw { card: string; copies: number; newlyUnlocked: boolean; }
 
 export const UNIT_CARDS = [...ROLE_CARDS.pawn, ...ROLE_CARDS.knight, ...ROLE_CARDS.bishop, ...ROLE_CARDS.rook];
@@ -31,6 +31,7 @@ export function normalizeCollection(c: Collection): Collection {
   for (const id of COLLECTIBLE) if (!c.cards[id]) c.cards[id] = { unlocked: STARTER.includes(id), level: 1, copies: 0 };
   if (!Array.isArray(c.deck.spells)) c.deck.spells = [...STARTER_DECK.spells!];
   for (const id of ["rally", "curse"]) c.cards[id]!.unlocked = true;
+  if (typeof c.stored !== "number") c.stored = 0;
   return c;
 }
 
@@ -80,7 +81,27 @@ export function recordResult(c: Collection, won: boolean, rng: () => number = Ma
   if (!won) { c.losses++; return []; }
   c.wins++;
   c.gems += WIN_GEMS;
-  return openChest(c, rng);
+  c.stored = (c.stored ?? 0) + 1;
+  void rng;
+  return [];
+}
+
+export function openStored(c: Collection, rng: () => number = Math.random): boolean {
+  if (!c.stored || c.stored <= 0) return false;
+  c.stored -= 1;
+  c.lastChest = openChest(c, rng);
+  return true;
+}
+
+export function buyCard(c: Collection, id: string): boolean {
+  const o = c.cards[id];
+  const cost = unlockCost(id);
+  if (!o || c.gems < cost) return false;
+  if (!o.unlocked) o.unlocked = true;
+  else if (o.level >= MAX_LEVEL) return false;
+  else o.copies += 1;
+  c.gems -= cost;
+  return true;
 }
 
 export function setDeckCard(c: Collection, id: string): boolean {

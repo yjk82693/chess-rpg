@@ -1,0 +1,87 @@
+{
+  "run_id": "demo1",
+  "exported_at": "2026-10-11T17:18:47.394Z",
+  "generations": [
+    {
+      "generation": 0,
+      "condition": "full",
+      "status": "done",
+      "win_rate": 0.2,
+      "avg_score": 0.0990949293101313,
+      "n_battles": 60,
+      "heldout": null,
+      "best": {
+        "persona": "baseline",
+        "playbook": {
+          "formation": "spread",
+          "advance_turn": 0,
+          "target_priority": [
+            "nearest"
+          ],
+          "focus_fire": false,
+          "terrain_prefs": {
+            "forest": 0.2,
+            "fort": 0.2
+          },
+          "retreat_hp_threshold": 0.2,
+          "use_fire_on_forest": false,
+          "avoid_triangle_disadvantage": false
+        },
+        "rationale": "Hand-written generation 0 baseline."
+      },
+      "candidates": [
+        {
+          "persona": "baseline",
+          "win_rate": 0.2,
+          "avg_score": 0.0990949293101313
+        }
+      ],
+      "party": [
+        {
+          "id": "p_rook",
+          "class": "armored",
+          "weapon": "lance",
+          "attribute": "water",
+          "level": 5,
+          "exp": 0,
+          "star": 1,
+          "promotion": 0,
+          "subskill": null
+        },
+        {
+          "id": "p_knight",
+          "class": "cavalier",
+          "weapon": "sword",
+          "attribute": "fire",
+          "level": 5,
+          "exp": 0,
+          "star": 1,
+          "promotion": 0,
+          "subskill": null
+        },
+        {
+          "id": "p_bishop",
+          "class": "winged",
+          "weapon": "lance",
+          "attribute": "electric",
+          "level": 5,
+          "exp": 0,
+          "star": 1,
+          "promotion": 0,
+          "subskill": null
+        },
+        {
+          "id": "p_queen",
+          "class": "mage",
+          "weapon": "tome",
+          "attribute": "fire",
+          "level": 5,
+          "exp": 0,
+          "star": 1,
+          "promotion": 0,
+          "subskill": null
+        }
+      ]
+    }
+  ]
+}

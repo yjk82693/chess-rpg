@@ -87,7 +87,6 @@ function menuScreen() {
       <button class="btn" data-go="prep">Battle Prep<small>Party, loadout and stage</small></button>
       <button class="btn" data-go="battle">Battle<small>Replay a battle with the selected playbook</small></button>
       <button class="btn primary" data-go="chess">Chess RPG<small>Hero cards, river board, ladder, chests</small></button>
-      <button class="btn primary" data-go="chess">Chess RPG<small>Hero cards, river board, ladder, chests</small></button>
       <button class="btn" data-go="compare">Gen vs Gen<small>Early vs trained generation, side by side</small></button>
       <button class="btn" data-go="solo">Solo Battle<small>Command your army yourself</small></button>
       <button class="btn" data-go="settings">Settings<small>Run data and playback</small></button>
@@ -494,4 +493,3 @@ import { compareScreen } from "./compare.js";
 
 import { chessScreen } from "./chess.js";
 
-import { chessScreen } from "./chess.js";

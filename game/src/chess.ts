@@ -358,7 +358,7 @@ export function scoreChessAction(s: ChessState, act: ChessAction, pers: ChessPer
   let sc = 0;
   if (act.type === "rally" || act.type === "curse") {
     const enemiesNear = s.pieces.filter(q => q.alive && q.side !== p.side && Math.abs(q.y - p.y) <= 4).length;
-    return enemiesNear >= 3 ? 6 + (act.type === "curse" ? 0.5 : 0) : 0.5;
+    return enemiesNear >= 3 ? 6 + (act.type === "curse" ? 0.5 : 0) : -1;
   }
   if (act.type === "cast") {
     if (!t || t.side === p.side) return -100;

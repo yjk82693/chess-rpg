@@ -14,7 +14,7 @@ import { Frame, battleAt, buildFrames, describe, initialUnits } from "./replay.j
 import { GenExport, RunExport, frozenGens, fullGens, partyOf, playbookOf } from "./runs.js";
 import { COLORS, TILE } from "./theme.js";
 
-export type ScreenName = "menu" | "training" | "prep" | "battle" | "settings" | "solo" | "compare";
+export type ScreenName = "menu" | "training" | "prep" | "battle" | "settings" | "solo" | "compare" | "chess";
 
 export interface AppState {
   run: RunExport;
@@ -42,7 +42,7 @@ export function go(name: ScreenName) {
   cleanup?.();
   cleanup = null;
   current = name;
-  ({ menu: menuScreen, training: trainingScreen, prep: prepScreen, battle: battleScreen, settings: settingsScreen, solo: soloScreen, compare: compareScreen })[name]();
+  ({ menu: menuScreen, training: trainingScreen, prep: prepScreen, battle: battleScreen, settings: settingsScreen, solo: soloScreen, compare: compareScreen, chess: chessScreen })[name]();
 }
 
 // ---------- helpers ----------
@@ -86,6 +86,8 @@ function menuScreen() {
       <button class="btn" data-go="training">Training Grounds<small>Watch the AI coach improve your army</small></button>
       <button class="btn" data-go="prep">Battle Prep<small>Party, loadout and stage</small></button>
       <button class="btn" data-go="battle">Battle<small>Replay a battle with the selected playbook</small></button>
+      <button class="btn primary" data-go="chess">Chess RPG<small>Hero cards, river board, ladder, chests</small></button>
+      <button class="btn primary" data-go="chess">Chess RPG<small>Hero cards, river board, ladder, chests</small></button>
       <button class="btn" data-go="compare">Gen vs Gen<small>Early vs trained generation, side by side</small></button>
       <button class="btn" data-go="solo">Solo Battle<small>Command your army yourself</small></button>
       <button class="btn" data-go="settings">Settings<small>Run data and playback</small></button>
@@ -489,3 +491,7 @@ export function refreshIfIdle() {
 }
 
 import { compareScreen } from "./compare.js";
+
+import { chessScreen } from "./chess.js";
+
+import { chessScreen } from "./chess.js";

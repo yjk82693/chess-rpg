@@ -1,15 +1,15 @@
 # Training Grounds
 
-**An AI coaching team that learns how to win a tactical RPG, and a rival that learns how to beat you.**
+**A dark-fantasy Chess RPG where AI coaches train your army, and an adaptive rival learns how to counter you.**
 
 Built at c0mpiled-15 (Penn State, Oct 11 2026) for **Track 1A: Build a Self-Improving Agent Team (Luminal)**.
 
 ## What it does
 
-Training Grounds is a Fire Emblem style tactics game (8x8 grid, weapon triangle,
-elemental reactions, terrain) built from our own SRPG design docs. On top of it
-runs a team of LLM agents that improves an army's battle strategy over
-generations:
+Training Grounds combines chess-inspired units and board positioning with
+Fire Emblem-style combat, hero cards, terrain, elemental reactions, and army
+progression. Behind the game, four parallel LLM coaches analyze battle results
+and evolve the army's strategy over generations:
 
 1. **Coach team (4 personas in parallel):** Aggressor, Warden, Terrain
    Tactician, and Analyst each read the last generation's battle summaries and

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { MongoClient, ObjectId } from "mongodb";
 import { validatePlaybook } from "./executor.js";
+import { updateRival } from "./rival.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(here, "../../.env"), quiet: true });
@@ -91,7 +92,9 @@ async function main() {
         });
         const n = await db.collection("battles").countDocuments({ run_id: runId, split: "human" });
         console.log(`saved solo battle for ${player}: ${r.winner === "player" ? "human won" : "rival won"} (${n} on record)`);
-        return send(res, 200, { ok: true, id: String(ins.insertedId), battles: n });
+        const rival = process.env.RIVAL_RULES === "off" ? null : await updateRival(db, player);
+        if (rival) console.log(`rival-${player} gen ${rival.generation}: ${rival.rationale}`);
+        return send(res, 200, { ok: true, id: String(ins.insertedId), battles: n, rival });
       }
 
       send(res, 404, { error: "not found" });

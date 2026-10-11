@@ -62,7 +62,7 @@ export function validateParty(raw: any): { party: UnitSpec[]; errors: string[] }
     const level = Number.isInteger(u.level) && u.level >= 1 && u.level <= 30 ? u.level : (errors.push(`${where}.level invalid`), 5);
     const star = Number.isInteger(u.star) && u.star >= 1 && u.star <= 5 ? u.star : (errors.push(`${where}.star invalid`), 1);
     const subskill = u.subskill == null ? null : subskills.includes(u.subskill) ? u.subskill : (errors.push(`${where}.subskill invalid`), null);
-    const inv: Item[] = Array.isArray(u.items) ? u.items.filter((x: string) => items.includes(x)).slice(0, MAX_ITEMS_PER_UNIT) : [];
+    const inv: Item[] = Array.isArray(u.items) ? u.items.filter((x: string) => items.includes(x)).slice(0, MAX_ITEMS_PER_UNIT) : [Item.Vulnerary];
     if (Array.isArray(u.items) && inv.length !== u.items.length) errors.push(`${where}.items had invalid or extra entries`);
     cost += star * COST_PER_STAR;
     gold += inv.reduce((s, it) => s + ITEM_PRICE[it], 0);

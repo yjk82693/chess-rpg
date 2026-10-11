@@ -1,7 +1,5 @@
 // maps.ts: hand-made 8x8 maps (Fire Emblem style). Train maps feed the agents;
 // held-out maps are only used for the final evaluation.
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { GLYPH_TO_TERRAIN, GRID_SIZE, TERRAIN, Terrain } from "./data.js";
 import { Pos, inBounds } from "./state.js";
 

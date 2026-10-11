@@ -1,6 +1,4 @@
 // executor.ts: turns a Coach playbook (PLAN section 5.1) into a battle policy, and evaluates it.
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Team, UnitClass, triangleMod } from "./data.js";
 import { Action, enemiesOf, legalActions } from "./actions.js";
 import { Policy, runBattle } from "./engine.js";

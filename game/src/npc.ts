@@ -1,6 +1,4 @@
 // npc.ts: scripted NPC personalities. Each scores every legal action with its own weights.
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { Attribute, TERRAIN, Team, UnitClass, WEAPON_RANGE } from "./data.js";
 import { Action, enemiesOf, legalActions, reachableTiles } from "./actions.js";
 import { Policy, randomPolicy, runBattle } from "./engine.js";

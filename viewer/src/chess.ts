@@ -823,7 +823,7 @@ function battle(m: Match) {
     c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
     c.strokeStyle = sel === pc.id ? COLORS.cursor : pc.side === me ? COLORS.gold : "#e0524b"; c.lineWidth = sel === pc.id ? 4 : 3; c.stroke();
     const artId = pc.kind === "king" ? kingArt(pc.side === me) : pc.card;
-    if (spriteOk(artId)) c.drawImage(sprites[artId]!, cx - r, cy - r, r * 2, r * 2);
+    if (spriteOk(artId)) c.drawImage(sprites[artId]!, cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7);
     else {
       c.fillStyle = isWhite ? "#23262e" : "#f4efe4"; c.font = `${Math.round(TILE * 0.46)}px "Apple Symbols", "Segoe UI Symbol", serif`;
       c.textAlign = "center"; c.textBaseline = "middle";

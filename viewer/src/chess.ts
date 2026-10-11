@@ -614,6 +614,8 @@ function battle(m: Match) {
   const foe: Side = me === "P" ? "E" : "P";
   const flip = me === "E";
   let s: ChessState = m.state ?? createChess(deckWithLevels(p.collection), m.enemy!);
+  const iAmWhite = m.mode === "pvp" ? me === "P" : Math.random() < 0.5;
+  if (m.mode !== "pvp" && !m.state && !iAmWhite) s.turn = foe;
   let seq = m.seq ?? 0;
   let sel: string | null = null;
   let busy = false;
@@ -657,7 +659,7 @@ function battle(m: Match) {
     vs.style.cssText += ";background:radial-gradient(circle,rgba(20,28,56,.95),rgba(5,8,18,.98));transition:opacity .35s";
     vs.innerHTML = `<div style="display:flex;align-items:center;gap:4vw">
       <img src="/assets/cards/${mine}.png" alt="" onerror="this.style.visibility='hidden'" style="height:min(46vh,360px);filter:drop-shadow(0 0 22px ${COLORS.team.player})">
-      <div style="text-align:center"><div class="cr-vs" style="font-size:64px">VS</div><div class="muted">${esc(m.title)}</div></div>
+      <div style="text-align:center"><div class="cr-vs" style="font-size:64px">VS</div><div class="muted">${esc(m.title)}</div><div style="margin-top:8px;font-size:20px">${iAmWhite ? "⚪ You play White · you move first" : "⚫ You play Black · they move first"}</div></div>
       <img src="/assets/cards/${theirs}.png" alt="" onerror="this.style.visibility='hidden'" style="height:min(46vh,360px);transform:scaleX(-1);filter:drop-shadow(0 0 22px ${COLORS.team.npc})">
     </div>`;
     document.body.appendChild(vs);
@@ -770,13 +772,14 @@ function battle(m: Match) {
 
   const piece = (pc: Piece) => {
     const cx = SX(pc.x) + TILE / 2, cy = SY(pc.y) + TILE / 2 - 3, r = TILE * 0.36;
-    c.fillStyle = pc.side === me ? COLORS.team.player! : COLORS.team.npc!;
+    const isWhite = (pc.side === me) === iAmWhite;
+    c.fillStyle = isWhite ? "#f4efe4" : "#23262e";
     c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = sel === pc.id ? COLORS.cursor : pc.side === me ? COLORS.gold : "#fff"; c.lineWidth = sel === pc.id ? 4 : 2; c.stroke();
+    c.strokeStyle = sel === pc.id ? COLORS.cursor : pc.side === me ? COLORS.gold : "#e0524b"; c.lineWidth = sel === pc.id ? 4 : 3; c.stroke();
     const artId = pc.kind === "king" ? kingArt(pc.side === me) : pc.card;
     if (spriteOk(artId)) c.drawImage(sprites[artId]!, cx - r, cy - r, r * 2, r * 2);
     else {
-      c.fillStyle = "#fff"; c.font = `${Math.round(TILE * 0.46)}px "Apple Symbols", "Segoe UI Symbol", serif`;
+      c.fillStyle = isWhite ? "#23262e" : "#f4efe4"; c.font = `${Math.round(TILE * 0.46)}px "Apple Symbols", "Segoe UI Symbol", serif`;
       c.textAlign = "center"; c.textBaseline = "middle";
       c.fillText(GLYPH[pc.kind] + "\uFE0E", cx, cy + 1);
     }
@@ -868,7 +871,7 @@ function battle(m: Match) {
   };
 
   const hud = () => {
-    $("turninfo").textContent = s.winner ? "Game over" : `Turn ${Math.floor(s.ply / 2) + 1} · ${s.turn === me ? "Your move" : m.mode === "pvp" ? "Opponent's move…" : "Enemy thinking…"}`;
+    $("turninfo").textContent = (iAmWhite ? "⚪ You: White · " : "⚫ You: Black · ") + (s.winner ? "Game over" : `Turn ${Math.floor(s.ply / 2) + 1} · ${s.turn === me ? "Your move" : m.mode === "pvp" ? "Opponent's move…" : "Enemy thinking…"}`);
     const myTurn = s.turn === me && !busy && !s.winner;
     $("spellbar").innerHTML = s.spells[me].map(id => {
       const sp = SPELLS[id]!, used = s.used[me].includes(id), ok = myTurn && !used && spellActs(id).length > 0;
@@ -1072,6 +1075,7 @@ function battle(m: Match) {
   };
 
   setCleanup(() => { window.removeEventListener("keydown", onKey); timers.forEach(t => { window.clearTimeout(t); window.clearInterval(t); }); });
+  if (m.mode !== "pvp" && s.turn !== me && !s.winner) timers.push(window.setTimeout(() => enemyTurn(), 1500));
   { const k = myKing(); if (k) cursor = { x: k.x, y: k.y }; }
   hud();
   requestAnimationFrame(draw);

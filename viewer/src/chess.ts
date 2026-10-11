@@ -185,7 +185,7 @@ function cardTile(id: string, extra = "", dim = false) {
   return `<div class="panel card" style="${border}">${head}
     ${art}<div class="name">${esc(c.name)}</div>
     <div class="muted small">${ROLE_LABEL[c.kind] ?? c.kind} · ${c.weapon} · ${c.body}</div>
-    <div class="small" style="margin:4px 0">HP ${c.hp} · ATK ${c.atk || c.mag} · DEF ${c.def} · SPD ${c.spd}</div>
+    <div class="small" style="margin:4px 0">${c.kind === "pawn" ? `HP ${c.hp} · ${c.weapon} · fixed 6 dmg` : `HP ${c.hp} · ATK ${c.atk || c.mag} · DEF ${c.def} · SPD ${c.spd}`}</div>
     <div class="muted small">${esc(c.blurb)}</div>${extra}</div>`;
 }
 
@@ -845,7 +845,7 @@ function battle(m: Match) {
       <div><div class="uname">${esc(cd.name)} · Lv ${pc.level}</div><div class="muted small">${pc.kind} · ${pc.weapon} · ${pc.body}</div></div></div>
       ${pc.kind === "queen" ? `<p class="small">Strikes left: ${pc.charges}</p>` : `<div class="hpbar"><div style="width:${r * 100}%;background:${r > 0.6 ? COLORS.hpGood : r > 0.3 ? COLORS.hpMid : COLORS.hpLow}"></div></div>
       <div class="muted small">HP ${pc.hp} / ${pc.maxHp}</div>
-      <div class="stats"><span>ATK</span><span>${pc.atk}</span><span>MAG</span><span>${pc.mag}</span><span>DEF</span><span>${pc.def}</span><span>RES</span><span>${pc.res}</span><span>SPD</span><span>${pc.spd}</span></div>`}
+      ${pc.kind === "pawn" ? `<div class="stats"><span>Weapon</span><span>${pc.weapon}</span><span>Damage</span><span>6 fixed</span></div>` : `<div class="stats"><span>ATK</span><span>${pc.atk}</span><span>MAG</span><span>${pc.mag}</span><span>DEF</span><span>${pc.def}</span><span>RES</span><span>${pc.res}</span><span>SPD</span><span>${pc.spd}</span></div>`}`}
       <p class="muted small">${esc(cd.blurb)}</p><div class="tags">${aura}</div>`;
   };
 

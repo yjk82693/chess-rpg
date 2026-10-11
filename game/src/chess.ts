@@ -282,12 +282,17 @@ function triangle(a: Weapon, d: Weapon): number {
   return 1;
 }
 
+export const PAWN_DMG = 6;
+
 export function strikeDamage(s: ChessState, a: Piece, d: Piece): number {
   const am = auraMod(s, a), dm = auraMod(s, d);
   if (a.weapon === "staff") return 0;
   if (a.weapon === "tome") {
     const eff = d.body === "armored" ? 2 : d.body === "flier" ? 0.5 : 1;
     return Math.max(1, Math.round((a.mag + am.atk + WEAPON_POWER.tome) * eff) - Math.max(0, d.res + dm.def));
+  }
+  if (a.kind === "pawn") {
+    return Math.max(1, Math.round(PAWN_DMG * triangle(a.weapon, d.weapon)));
   }
   const raw = (a.atk + am.atk + WEAPON_POWER[a.weapon]) * triangle(a.weapon, d.weapon);
   return Math.max(1, Math.round(raw) - Math.max(0, d.def + dm.def));

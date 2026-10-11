@@ -182,3 +182,20 @@ with a --condition full|frozen_stats flag and a --fake-runner flag that writes
 random battle results so I can test before the TS runner exists;
 (7) report.py producing the charts in section 9 with matplotlib.
 Keep everything runnable from the command line."
+
+## 11. Amendment (12:45): Shop and inventory
+- Party JSON (5.2) adds per-unit "items": [...] (max 2 per unit) and a
+  top-level "gold_spent".
+- Items and prices:
+  - vulnerary: 50 gold, heals 30% max HP
+  - elixir: 150 gold, heals 100% max HP
+  - salve: 40 gold, heals 15% max HP and clears burn + attribute mark
+- Budget: 300 gold per generation for the loadout, not carried over.
+  Items are restored at the start of every battle (the party is a template).
+- Quartermaster ("full" condition) buys and assigns items as part of its party
+  output; add the price list to its prompt. In "frozen_stats", every unit
+  carries one vulnerary and the shop is skipped.
+- Using an item is a battle action (move, then use item instead of
+  attacking); the engine already supports it.
+- No shops on the map today. The Battle Prep screen shows the shop and each
+  unit's inventory.

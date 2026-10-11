@@ -5,13 +5,16 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from typing import TypeVar
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import APIStatusError, OpenAI
 from pydantic import BaseModel, ValidationError
+from pathlib import Path
 
 load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -79,8 +82,11 @@ def call_with_retry_and_fallback(
                 temperature=temperature,
                 schema=schema,
             )
-        except (ValidationError, json.JSONDecodeError, RuntimeError) as exc:
+        except (ValidationError, json.JSONDecodeError, RuntimeError, APIStatusError) as exc:
             last_err = str(exc)
+            if isinstance(exc, APIStatusError) and exc.status_code in (429, 503) and attempt == 0:
+                time.sleep(5)
+                continue
             if attempt == 1:
                 break
     # Parent playbook fallback for Coach is handled by caller supplying fallback Playbook/CoachProposal.

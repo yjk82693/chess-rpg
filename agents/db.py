@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from bson import ObjectId
+from pathlib import Path
+
 from dotenv import load_dotenv
 from pymongo import ASCENDING, MongoClient
 from pymongo.collection import Collection
@@ -24,6 +26,7 @@ from defaults import (
 from schemas import Condition, Party, Playbook, Split
 
 load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
 def player_won(winner: Optional[str]) -> bool:

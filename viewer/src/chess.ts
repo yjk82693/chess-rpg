@@ -1,10 +1,11 @@
 // chess.ts: Chess RPG home (Clash-style swipe tabs), arena modes, cards, shop, ranking, lab, and the battle screen.
 import {
-  BRIDGE_COLS, CARDS, H, QUEEN_CASTS, ROLE_CARDS, W, applyChess, byIdC, chooseChessAction, createChess, isWater,
-  pieceActions, pieceAt, type ChessAction, type ChessEvent, type ChessPersonality, type ChessState, type Deck, type Piece, type Side,
+  BRIDGE_COLS, CARDS, DECK_BUDGET, H, QUEEN_CASTS, RARITY_COLOR, RARITY_LABEL, ROLE_CARDS, SPELLS, SPELL_IDS, SPELL_LIMIT, W,
+  applyChess, byIdC, chooseChessAction, costOf, createChess, deckCost, isWater, pieceActions, pieceAt, rarityOf, spellPower,
+  type ChessAction, type ChessEvent, type ChessPersonality, type ChessState, type Deck, type Piece, type Side,
 } from "../../game/src/chess.js";
 import {
-  GEM_PACKS, MAX_LEVEL, UNLOCK_GEMS, canUpgrade, deckWithLevels, newCollection, recordResult, setDeckCard, unlockWithGems,
+  GEM_PACKS, MAX_LEVEL, canUpgrade, unlockCost, deckWithLevels, newCollection, normalizeCollection, recordResult, setDeckCard, unlockWithGems,
   upgrade, upgradeCost, type ChestDraw, type Collection,
 } from "../../game/src/cards.js";
 import { LADDER, ladderReward, recommendDecks, type DeckPick } from "../../game/src/ladder.js";
@@ -18,13 +19,12 @@ const GLYPH: Record<string, string> = { pawn: "♟", knight: "♞", bishop: "♝
 const ROLE_LABEL: Record<string, string> = { pawn: "Pawn card", knight: "Knight", bishop: "Bishop", rook: "Rook" };
 const ROLES = ["pawn", "knight", "bishop", "rook"] as const;
 
-type Tab = "shop" | "cards" | "arena" | "rank" | "lab";
+type Tab = "shop" | "cards" | "arena" | "rank";
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: "shop", icon: "🛒", label: "Shop" },
   { id: "cards", icon: "🃏", label: "Cards" },
   { id: "arena", icon: "⚔️", label: "Battle" },
   { id: "rank", icon: "🏆", label: "Ranking" },
-  { id: "lab", icon: "🧪", label: "Lab" },
 ];
 
 interface Profile { player: string; collection: Collection; ladderCleared: number; trophies: number; }
@@ -39,6 +39,7 @@ let profile: Profile | null = null;
 let online = false;
 let tab: Tab = "arena";
 try { tab = (localStorage.getItem("tg.tab") as Tab) || "arena"; } catch { /* ignore */ }
+if (!["shop", "cards", "arena", "rank"].includes(tab)) tab = "arena";
 const sprites: Record<string, HTMLImageElement> = {};
 const LOCAL_KEY = () => `tg.chess.${playerId()}`;
 
@@ -71,11 +72,11 @@ function saveLocal() {
 
 async function loadProfile(): Promise<Profile> {
   const j = await api<{ profile: Profile }>(`profile?player=${encodeURIComponent(playerId())}`);
-  if (j?.profile) { online = true; return j.profile; }
+  if (j?.profile) { online = true; normalizeCollection(j.profile.collection); return j.profile; }
   online = false;
   try {
     const raw = localStorage.getItem(LOCAL_KEY());
-    if (raw) return JSON.parse(raw) as Profile;
+    if (raw) { const pr = JSON.parse(raw) as Profile; normalizeCollection(pr.collection); return pr; }
   } catch { /* ignore */ }
   return { player: playerId(), collection: newCollection(), ladderCleared: 0, trophies: 0 };
 }
@@ -84,7 +85,7 @@ async function cardOp(op: "upgrade" | "unlock" | "equip", card: string): Promise
   if (!profile) return false;
   if (online) {
     const j = await api<{ ok: boolean; profile: Profile }>("card", { player: profile.player, op, card });
-    if (j) { profile = j.profile; return j.ok; }
+    if (j) { profile = j.profile; normalizeCollection(profile.collection); return j.ok; }
     return false;
   }
   const c = profile.collection;
@@ -95,7 +96,6 @@ async function cardOp(op: "upgrade" | "unlock" | "equip", card: string): Promise
 
 const app = () => document.getElementById("app")!;
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const cardName = (id: string) => CARDS[id]?.name ?? id;
 const gemsChip = () => `<span class="chip" style="color:#7fd8ff">💎 ${profile?.collection.gems ?? 0}</span>`;
 const modeChip = () => `<span class="chip ${online ? "" : "muted"}">${online ? "MongoDB synced" : "Offline (local save)"}</span>`;
 
@@ -110,7 +110,7 @@ function injectStyle() {
   .cr-panes{flex:1;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
   .cr-panes::-webkit-scrollbar{display:none}
   .cr-pane{flex:0 0 100%;scroll-snap-align:center;scroll-snap-stop:always;overflow-y:auto;padding:16px;box-sizing:border-box}
-  .cr-nav{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid rgba(201,162,74,.35);background:rgba(10,14,30,.94)}
+  .cr-nav{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(201,162,74,.35);background:rgba(10,14,30,.94)}
   .cr-nav button{background:none;border:0;color:#98a1b6;padding:8px 0 10px;cursor:pointer;font:inherit;transition:transform .18s,color .18s}
   .cr-nav button span{display:block;font-size:26px;line-height:1.1}
   .cr-nav button small{font-size:12px;letter-spacing:.05em;text-transform:uppercase}
@@ -135,29 +135,49 @@ function injectStyle() {
   .cr-vs{font-family:Cinzel,serif;font-size:34px;color:#ecd28c;margin:6px 0}
   .cr-lad li{cursor:pointer}
   .cr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+  .cr-rar{display:inline-block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:1px 6px;border-radius:8px;border:1px solid currentColor}
+  .cr-cost{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#b04ad8;color:#fff;font-size:11px;font-weight:700;box-shadow:0 0 6px rgba(180,108,255,.6)}
+  .cr-spellbar{display:flex;gap:8px;flex-wrap:wrap}
+  .cr-spell{border-width:2px !important}
+  .cr-spell.on{box-shadow:0 0 12px currentColor}
   `;
   document.head.appendChild(st);
 }
 
+const rarColor = (id: string) => RARITY_COLOR[rarityOf(id)];
+const rarBadge = (id: string) => `<span class="cr-rar" style="color:${rarColor(id)}">${RARITY_LABEL[rarityOf(id)]}</span> <span class="cr-cost" title="Deck cost">${costOf(id)}</span>`;
+const cardLabel = (id: string) => CARDS[id]?.name ?? SPELLS[id]?.name ?? id;
+
 function cardTile(id: string, extra = "", dim = false) {
-  const c = CARDS[id]!;
   const o = profile?.collection.cards[id];
-  const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="" style="width:56px;height:56px;object-fit:contain">` : `<div class="glyph">${GLYPH[c.kind]}︎</div>`;
-  return `<div class="panel card" style="${dim ? "opacity:.45;" : ""}">
+  const sp = SPELLS[id];
+  const head = `<div class="row tight" style="justify-content:space-between">${rarBadge(id)}${o ? `<span class="muted small">Lv ${o.level}</span>` : ""}</div>`;
+  const border = `border-color:${rarColor(id)}88;${dim ? "opacity:.45;" : ""}`;
+  if (sp) {
+    const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="" style="width:56px;height:56px;object-fit:contain">` : `<div class="glyph" style="color:${rarColor(id)}">✦</div>`;
+    return `<div class="panel card" style="${border}">${head}${art}<div class="name">${esc(sp.name)}</div>
+      <div class="muted small">King spell · ${sp.target === "square" ? "targeted" : "instant"}</div>
+      <div class="small" style="margin:4px 0">${esc(sp.blurb)}</div>${extra}</div>`;
+  }
+  const c = CARDS[id]!;
+  const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="" style="width:56px;height:56px;object-fit:contain">` : `<div class="glyph">${GLYPH[c.kind]}\uFE0E</div>`;
+  return `<div class="panel card" style="${border}">${head}
     ${art}<div class="name">${esc(c.name)}</div>
-    <div class="muted small">${ROLE_LABEL[c.kind] ?? c.kind} · ${c.weapon} · ${c.body}${o ? ` · Lv ${o.level}` : ""}</div>
+    <div class="muted small">${ROLE_LABEL[c.kind] ?? c.kind} · ${c.weapon} · ${c.body}</div>
     <div class="small" style="margin:4px 0">HP ${c.hp} · ATK ${c.atk || c.mag} · DEF ${c.def} · SPD ${c.spd}</div>
     <div class="muted small">${esc(c.blurb)}</div>${extra}</div>`;
 }
 
 function miniCard(id: string, level?: number) {
-  const c = CARDS[id]!;
-  const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="">` : `<div class="g">${GLYPH[c.kind]}︎</div>`;
-  return `<div class="cr-mc">${art}<div class="n">${esc(c.name)}</div>${level ? `<div class="l">Lv ${level}</div>` : ""}</div>`;
+  const glyph = SPELLS[id] ? "✦" : `${GLYPH[CARDS[id]?.kind ?? "pawn"]}\uFE0E`;
+  const art = spriteOk(id) ? `<img src="/assets/cards/${id}.png" alt="">` : `<div class="g" style="color:${rarColor(id)}">${glyph}</div>`;
+  return `<div class="cr-mc" style="border-color:${rarColor(id)}">${art}<div class="n">${esc(cardLabel(id))}</div><div class="l"><span class="cr-cost" style="width:16px;height:16px;font-size:10px">${costOf(id)}</span>${level ? ` Lv ${level}` : ""}</div></div>`;
 }
 
 function deckStrip(d: Deck) {
-  return `<div class="cr-deck">${ROLES.map(r => miniCard(d[r], d.levels?.[d[r]] ?? profile?.collection.cards[d[r]]?.level)).join("")}</div>`;
+  const ids = [...ROLES.map(r => d[r]), ...(d.spells ?? [])];
+  return `<div class="cr-deck">${ids.map(id => miniCard(id, d.levels?.[id] ?? profile?.collection.cards[id]?.level)).join("")}</div>
+    <div class="muted small" style="text-align:center">Deck cost <b style="color:${deckCost(d) > DECK_BUDGET ? "#ff5a52" : "#ecd28c"}">${deckCost(d)} / ${DECK_BUDGET}</b> · ${(d.spells ?? []).length}/${SPELL_LIMIT} spells</div>`;
 }
 
 function miniBoard() {
@@ -168,7 +188,7 @@ function miniBoard() {
     const bg = isWater(x, y) ? COLORS.terrain.water : bridge ? "#8a5a33" : (x + y) % 2 === 0 ? "#a9c77e" : "#87a85f";
     const kind = y === 0 || y === 7 ? back[x] : y === 1 || y === 6 ? "pawn" : "";
     const col = y < 2 ? COLORS.team.npc : COLORS.team.player;
-    html += `<div style="background:${bg}">${kind ? `<span style="color:${col};text-shadow:0 0 2px #000">${GLYPH[kind]}︎</span>` : ""}</div>`;
+    html += `<div style="background:${bg}">${kind ? `<span style="color:${col};text-shadow:0 0 2px #000">${GLYPH[kind]}\uFE0E</span>` : ""}</div>`;
   }
   return `<div class="cr-mini">${html}</div>`;
 }
@@ -186,11 +206,11 @@ function shell(start: Tab) {
   const p = profile!;
   app().innerHTML = `<div class="cr-shell">
     <header class="cr-top"><span class="who">${esc(p.player)}</span><span class="chip" style="color:var(--gold)" id="crtro">🏆 ${p.trophies}</span>
-      <span id="crgems">${gemsChip()}</span><div class="spacer" style="flex:1"></div>${modeChip()}</header>
+      <span id="crgems">${gemsChip()}</span><div class="spacer" style="flex:1"></div><button class="btn sm" data-go="classic" title="Agent training: curves, Gen vs Gen, replays">🧪 AI Lab</button>${modeChip()}</header>
     <main class="cr-panes" id="panes">${TABS.map(t => `<section class="cr-pane" id="pane-${t.id}"></section>`).join("")}</main>
     <nav class="cr-nav" id="crnav">${TABS.map(t => `<button data-tab="${t.id}"><span>${t.icon}</span><small>${t.label}</small></button>`).join("")}</nav>
   </div>`;
-  shopPane(); cardsPane(); arenaPane(); rankPane(); labPane();
+  shopPane(); cardsPane(); arenaPane(); void rankPane();
   bindGo();
   const panes = $("panes");
   const idx = (t: Tab) => TABS.findIndex(x => x.id === t);
@@ -346,20 +366,22 @@ function cardsPane(recs: DeckPick[] | null = null, recLevel = Math.min(LADDER.le
   const c = profile!.collection;
   const tile = (id: string) => {
     const o = c.cards[id]!;
-    const equipped = c.deck[CARDS[id]!.kind as (typeof ROLES)[number]] === id;
+    const equipped = SPELLS[id] ? (c.deck.spells ?? []).includes(id) : c.deck[CARDS[id]!.kind as (typeof ROLES)[number]] === id;
     const need = upgradeCost(o.level);
     const bar = o.unlocked && o.level < MAX_LEVEL ? `<div class="hpbar" title="${o.copies}/${need} copies"><div style="width:${Math.min(100, (o.copies / need) * 100)}%;background:${COLORS.gold}"></div></div><div class="muted small">${o.copies}/${need} copies to Lv ${o.level + 1}</div>` : o.unlocked ? `<div class="muted small">Max level</div>` : "";
     const btns = !o.unlocked
-      ? `<button class="btn sm" data-op="unlock" data-card="${id}" ${c.gems >= UNLOCK_GEMS ? "" : "disabled"}>Unlock 💎 ${UNLOCK_GEMS}</button>`
-      : `${equipped ? `<span class="chip" style="color:var(--gold)">Equipped</span>` : `<button class="btn sm" data-op="equip" data-card="${id}">Equip</button>`}
+      ? `<button class="btn sm" data-op="unlock" data-card="${id}" ${c.gems >= unlockCost(id) ? "" : "disabled"}>Unlock 💎 ${unlockCost(id)}</button>`
+      : `${equipped ? (SPELLS[id] ? `<button class="btn sm" data-op="equip" data-card="${id}">Remove</button>` : `<span class="chip" style="color:var(--gold)">Equipped</span>`) : `<button class="btn sm" data-op="equip" data-card="${id}">Equip</button>`}
          ${canUpgrade(c, id) ? `<button class="btn sm primary" data-op="upgrade" data-card="${id}">Upgrade</button>` : ""}`;
     return cardTile(id, `${bar}<div class="row tight" style="margin-top:6px">${btns}</div>`, !o.unlocked);
   };
   el.innerHTML = `<h2 class="cr-h">Cards</h2><p class="cr-sub">Battle deck</p>${deckStrip(deckWithLevels(c))}
     <div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:14px;margin-top:10px">
-      <div>${ROLES.map(r => `<div class="panel" style="margin-bottom:12px"><h3>${ROLE_LABEL[r]}</h3>
-        <div class="cr-grid">${ROLE_CARDS[r].map(tile).join("")}</div></div>`).join("")}
-        <p class="muted small">${esc(msg)}</p></div>
+      <div><p class="small" style="color:#ecd28c">${esc(msg)}</p>
+        <div class="panel" style="margin-bottom:12px"><h3>✦ King's Spells <span class="muted small">(up to ${SPELL_LIMIT})</span></h3>
+        <div class="cr-grid">${SPELL_IDS.map(tile).join("")}</div></div>
+        ${ROLES.map(r => `<div class="panel" style="margin-bottom:12px"><h3>${ROLE_LABEL[r]}</h3>
+        <div class="cr-grid">${ROLE_CARDS[r].map(tile).join("")}</div></div>`).join("")}</div>
       <div class="panel" style="align-self:start"><h3>🧠 AI Trainer · Best deck</h3>
         <p class="muted small">The trainer plays every deck you own against the general you pick, then ranks them.</p>
         <div class="row"><label class="field">Opponent <select id="reclevel">${LADDER.map(l => `<option value="${l.level}" ${l.level === recLevel ? "selected" : ""}>${l.level}. ${esc(l.name)} (${l.personality})</option>`).join("")}</select></label>
@@ -375,7 +397,8 @@ function cardsPane(recs: DeckPick[] | null = null, recLevel = Math.min(LADDER.le
     const op = b.dataset.op as "upgrade" | "unlock" | "equip", card = b.dataset.card!;
     const ok = await cardOp(op, card);
     refreshTop(); arenaPane();
-    cardsPane(recs, recLevel, ok ? `${op === "equip" ? "Equipped" : op === "upgrade" ? "Upgraded" : "Unlocked"} ${cardName(card)}.` : `Couldn't ${op} ${cardName(card)}.`);
+    const why = op === "equip" ? (SPELLS[card] && (c.deck.spells ?? []).length >= SPELL_LIMIT && !(c.deck.spells ?? []).includes(card) ? `the King holds at most ${SPELL_LIMIT} spells` : `deck cost would exceed ${DECK_BUDGET}`) : op === "unlock" ? "not enough gems" : "not enough copies";
+    cardsPane(recs, recLevel, ok ? `${op === "equip" ? "Deck updated:" : op === "upgrade" ? "Upgraded" : "Unlocked"} ${cardLabel(card)}.` : `Can't ${op} ${cardLabel(card)}: ${why}.`);
   }));
   const recommend = async () => {
     const lv = Number($<HTMLSelectElement>("reclevel").value);
@@ -406,7 +429,7 @@ function shopPane(msg = "") {
         <button class="btn primary" data-pack="${k.id}" style="margin-top:8px">Buy</button></div>`).join("")}
     </div>
     <div class="panel" style="max-width:640px;margin:14px auto 0"><h3>How it works</h3>
-      <p class="small">Every win opens a chest of 5 random cards (1 to 5 copies each). New cards unlock; duplicates upgrade cards up to Lv ${MAX_LEVEL}. Ladder wins pay gems, first clears pay triple. Spend 💎 ${UNLOCK_GEMS} to unlock any card without waiting for a drop.</p>
+      <p class="small">Every win opens a chest of 5 random cards. Rarer cards drop less often (Common, Rare, Super Rare, Epic, Legend = deck cost 1 to 5). New cards unlock; duplicates upgrade cards up to Lv ${MAX_LEVEL}. Ladder wins pay gems, first clears pay triple. Unlock any card instantly with gems: 💎 60 per point of deck cost (Common 60, Legend 300).</p>
       <p class="muted small">${STRIPE_LINK ? "Checkout opens in a new tab." : "Demo mode: purchases are recorded in MongoDB and gems are granted without payment."}</p>
       <p class="muted small">${esc(msg)}</p></div>`;
   el.querySelectorAll<HTMLElement>("[data-pack]").forEach(b => b.addEventListener("click", async () => {
@@ -440,19 +463,6 @@ async function rankPane() {
   if (ol && lb) ol.innerHTML = lb.top.map(r => `<li class="${r.player === p.player ? "current" : ""}">${esc(r.player)} · 🏆 ${r.trophies} · ladder ${r.ladderCleared}</li>`).join("") || `<li class="muted">No players yet</li>`;
 }
 
-// ---------- Lab (agent training, Track 1) ----------
-function labPane() {
-  $("pane-lab").innerHTML = `<h2 class="cr-h">Training Lab</h2><p class="cr-sub">Where the AI coach team learns. Generations of agents improve a battle playbook.</p>
-    <div class="menu-list" style="max-width:560px;margin:0 auto">
-      <button class="btn" data-go="training">Training Grounds<small>Watch the AI coach improve your army</small></button>
-      <button class="btn" data-go="compare">Gen vs Gen<small>Early vs trained generation, side by side</small></button>
-      <button class="btn" data-go="battle">Battle Replay<small>Replay a battle with the selected playbook</small></button>
-      <button class="btn" data-go="prep">Battle Prep<small>Party, loadout and stage</small></button>
-      <button class="btn" data-go="solo">SRPG Solo<small>Command the SRPG army yourself vs your adaptive rival</small></button>
-      <button class="btn" data-go="settings">Settings<small>Run data and playback</small></button>
-    </div>`;
-}
-
 // ---------- Battle ----------
 interface Fx { x: number; y: number; text: string; color: string; until: number; }
 
@@ -469,6 +479,7 @@ function battle(m: Match) {
   let fx: Fx[] = [];
   let done = false;
   let logLen = 0;
+  let targeting: string | null = null;
   const timers: number[] = [];
 
   app().innerHTML = `<div class="screen">
@@ -480,14 +491,13 @@ function battle(m: Match) {
         <div class="panel bottombar"><div class="transport">
           <div class="row tight">
             <button class="btn sm primary" id="hintbtn">Ask the Coach</button>
-            <button class="btn sm" id="rally">King: Rally</button>
-            <button class="btn sm" id="curse">King: Curse</button>
+            <span class="muted small">King's spells:</span><div class="cr-spellbar" id="spellbar"></div>
           </div>
           <div class="hint" id="hinttext">Click a piece to see its moves. Blue: move · Red: attack · Green: heal · Purple: queen strike.</div>
         </div></div>
       </div>
       <div class="side-col">
-        <div class="panel"><h3>Rules</h3><p class="small muted">Capture the enemy king to win. Pawns capture pawns but only chip HP off heroes. Hero vs hero is RPG combat with counters. River ranks 4–5: cross on the b/g bridges, or fly. Queen stays put and strikes ${QUEEN_CASTS} times, then vanishes.</p></div>
+        <div class="panel"><h3>Rules</h3><p class="small muted">Capture the enemy king to win. Pawns capture pawns but only chip HP off heroes. Hero vs hero is RPG combat with counters. River ranks 4–5: cross on the b/g bridges, or fly. Queen stays put and strikes ${QUEEN_CASTS} times, then vanishes. A pawn reaching the far rank becomes a new Queen. Your King casts spell cards (one per turn, 3-turn cooldown; spells deal half damage to Kings).</p></div>
         <div class="panel"><h3>Battle Log</h3><ol class="log" id="clog"></ol></div>
       </div>
     </div></div>`;
@@ -505,8 +515,10 @@ function battle(m: Match) {
 
   const actsFor = (id: string | null) => {
     const pc = id ? byIdC(s, id) : undefined;
-    return pc && pc.alive && pc.side === me ? pieceActions(s, pc).filter(a => a.type !== "rally" && a.type !== "curse") : [];
+    return pc && pc.alive && pc.side === me ? pieceActions(s, pc).filter(a => a.type !== "spell") : [];
   };
+  const myKing = () => s.pieces.find(q => q.alive && q.side === me && q.kind === "king");
+  const spellActs = (id: string) => { const k = myKing(); return k ? pieceActions(s, k).filter(a => a.type === "spell" && a.spell === id) : []; };
 
   const draw = () => {
     const now = performance.now();
@@ -538,6 +550,9 @@ function battle(m: Match) {
     c.fillStyle = "rgba(0,0,0,0.45)"; c.font = "11px Inter, sans-serif";
     for (let x = 0; x < W; x++) c.fillText("abcdefgh"[x]!, SX(x) + 3, size - 3);
     for (let y = 0; y < H; y++) c.fillText(String(8 - y), 3, SY(y) + 12);
+    if (targeting) for (const a of spellActs(targeting)) {
+      c.fillStyle = "rgba(255,140,40,0.42)"; c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
+    }
     for (const a of actsFor(sel)) {
       c.fillStyle = a.type === "move" ? COLORS.blueTile : a.type === "attack" ? COLORS.redTile : a.type === "heal" ? "rgba(95,208,126,0.45)" : "rgba(170,90,255,0.45)";
       c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
@@ -571,7 +586,7 @@ function battle(m: Match) {
     else {
       c.fillStyle = "#fff"; c.font = `${Math.round(TILE * 0.46)}px "Apple Symbols", "Segoe UI Symbol", serif`;
       c.textAlign = "center"; c.textBaseline = "middle";
-      c.fillText(GLYPH[pc.kind] + "︎", cx, cy + 1);
+      c.fillText(GLYPH[pc.kind] + "\uFE0E", cx, cy + 1);
     }
     c.textAlign = "left"; c.textBaseline = "alphabetic";
     if (pc.kind !== "queen") {
@@ -579,21 +594,22 @@ function battle(m: Match) {
       c.fillStyle = COLORS.hpBack; c.fillRect(bx, by, w, 5);
       c.fillStyle = ratio > 0.6 ? COLORS.hpGood : ratio > 0.3 ? COLORS.hpMid : COLORS.hpLow; c.fillRect(bx, by, w * ratio, 5);
     } else {
-      for (let i = 0; i < QUEEN_CASTS - s.casts[pc.side]; i++) { c.fillStyle = "#c58bff"; c.beginPath(); c.arc(cx - 10 + i * 10, SY(pc.y) + TILE - 7, 3.5, 0, Math.PI * 2); c.fill(); }
+      for (let i = 0; i < pc.charges; i++) { c.fillStyle = "#c58bff"; c.beginPath(); c.arc(cx - 10 + i * 10, SY(pc.y) + TILE - 7, 3.5, 0, Math.PI * 2); c.fill(); }
     }
     if (pc.level > 1) { c.fillStyle = COLORS.gold; c.font = "bold 11px Inter, sans-serif"; c.fillText(`L${pc.level}`, SX(pc.x) + TILE - 20, SY(pc.y) + 13); }
   };
 
   const info = () => {
     const pc = sel ? byIdC(s, sel) : undefined;
-    const aura = s.auras.map(a => `<span class="chip">${a.by === me ? "Your" : "Enemy"} ${a.kind}</span>`).join("");
+    const aura = s.auras.map(a => `<span class="chip">${a.by === me ? "Your" : "Enemy"} ${a.kind === "ward" ? "bulwark" : a.kind}</span>`).join("")
+      + `<div class="muted small" style="margin-top:6px">Enemy spells left: ${s.spells[foe].filter(id => !s.used[foe].includes(id)).map(id => SPELLS[id]!.name).join(", ") || "none"}</div>`;
     if (!pc) { $("info").innerHTML = `<h3>Piece</h3><p class="muted small">Select one of your pieces.</p><div class="tags">${aura}</div>`; return; }
     const cd = CARDS[pc.card]!;
     const r = pc.hp / pc.maxHp;
     $("info").innerHTML = `<h3>${pc.side === me ? "Your" : "Enemy"} ${esc(cd.name)}</h3>
-      <div class="uhead"><div class="uglyph" style="background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">${GLYPH[pc.kind]}︎</div>
+      <div class="uhead"><div class="uglyph" style="background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">${GLYPH[pc.kind]}\uFE0E</div>
       <div><div class="uname">${esc(cd.name)} · Lv ${pc.level}</div><div class="muted small">${pc.kind} · ${pc.weapon} · ${pc.body}</div></div></div>
-      ${pc.kind === "queen" ? `<p class="small">Strikes left: ${QUEEN_CASTS - s.casts[pc.side]}</p>` : `<div class="hpbar"><div style="width:${r * 100}%;background:${r > 0.6 ? COLORS.hpGood : r > 0.3 ? COLORS.hpMid : COLORS.hpLow}"></div></div>
+      ${pc.kind === "queen" ? `<p class="small">Strikes left: ${pc.charges}</p>` : `<div class="hpbar"><div style="width:${r * 100}%;background:${r > 0.6 ? COLORS.hpGood : r > 0.3 ? COLORS.hpMid : COLORS.hpLow}"></div></div>
       <div class="muted small">HP ${pc.hp} / ${pc.maxHp}</div>
       <div class="stats"><span>ATK</span><span>${pc.atk}</span><span>MAG</span><span>${pc.mag}</span><span>DEF</span><span>${pc.def}</span><span>RES</span><span>${pc.res}</span><span>SPD</span><span>${pc.spd}</span></div>`}
       <p class="muted small">${esc(cd.blurb)}</p><div class="tags">${aura}</div>`;
@@ -612,6 +628,9 @@ function battle(m: Match) {
         if (e.type === "attack" || e.type === "counter") fx.push({ x: e.x, y: e.y, text: `-${e.amount}`, color: COLORS.damage, until });
         if (e.type === "kill" || e.type === "capture") fx.push({ x: e.x, y: e.y, text: e.type === "capture" ? "CAPTURED" : "DEFEATED", color: COLORS.damage, until });
         if (e.type === "cast") fx.push({ x: e.x, y: e.y, text: "⚡ STRIKE", color: "#c58bff", until });
+        if (e.type === "spell") fx.push({ x: e.x, y: e.y, text: `✦ ${e.text.split(" casts ")[1] ?? "SPELL"}`, color: "#ffb020", until: until + 400 });
+        if (e.type === "promote") fx.push({ x: e.x, y: e.y, text: "♛ PROMOTED", color: "#c58bff", until: until + 600 });
+        if (e.type === "revive") fx.push({ x: e.x, y: e.y, text: "✚ REVIVED", color: COLORS.heal, until: until + 400 });
       }
       if (e.type === "heal" && e.targetId) { const t = byIdC(s, e.targetId); if (t) fx.push({ x: t.x, y: t.y, text: `+${e.amount}`, color: COLORS.heal, until }); }
     }
@@ -619,12 +638,20 @@ function battle(m: Match) {
 
   const hud = () => {
     $("turninfo").textContent = s.winner ? "Game over" : `Turn ${Math.floor(s.ply / 2) + 1} · ${s.turn === me ? "Your move" : m.mode === "pvp" ? "Opponent's move…" : "Enemy thinking…"}`;
-    const king = s.pieces.find(q => q.alive && q.side === me && q.kind === "king");
-    const ready = !!king && s.kingCd[me] === 0 && s.turn === me && !busy && !s.winner;
-    $<HTMLButtonElement>("rally").disabled = !ready;
-    $<HTMLButtonElement>("curse").disabled = !ready;
-    $<HTMLButtonElement>("rally").textContent = s.kingCd[me] > 0 ? `Rally (${s.kingCd[me]})` : "King: Rally";
-    $<HTMLButtonElement>("curse").textContent = s.kingCd[me] > 0 ? `Curse (${s.kingCd[me]})` : "King: Curse";
+    const myTurn = s.turn === me && !busy && !s.winner;
+    $("spellbar").innerHTML = s.spells[me].map(id => {
+      const sp = SPELLS[id]!, used = s.used[me].includes(id), ok = myTurn && !used && spellActs(id).length > 0;
+      const note = used ? "used" : s.kingCd[me] > 0 ? `cd ${s.kingCd[me]}` : `${spellPower(s, me, id)}`;
+      return `<button class="btn sm cr-spell ${targeting === id ? "on" : ""}" data-spell="${id}" ${ok ? "" : "disabled"} title="${esc(sp.blurb)}" style="border-color:${rarColor(id)};color:${rarColor(id)}">✦ ${esc(sp.name)} <span class="muted small">${note}</span></button>`;
+    }).join("") || `<span class="muted small">none equipped</span>`;
+    $("spellbar").querySelectorAll<HTMLElement>("[data-spell]").forEach(b => b.addEventListener("click", () => {
+      const id = b.dataset.spell!;
+      const sp = SPELLS[id]!;
+      sel = null;
+      if (sp.target === "square") { targeting = targeting === id ? null : id; $("hinttext").textContent = targeting ? `Pick a square for ${sp.name} (orange). Click again to cancel.` : ""; hud(); return; }
+      const a = spellActs(id)[0];
+      if (a) void play(a);
+    }));
     syncLog();
     info();
   };
@@ -685,7 +712,7 @@ function battle(m: Match) {
   };
 
   const play = async (a: ChessAction) => {
-    hint = null; sel = null;
+    hint = null; sel = null; targeting = null;
     if (m.mode === "pvp") {
       busy = true; hud();
       const r = await pvp<{ ok: boolean; seq: number; state: ChessState }>("move", { roomId: m.roomId, player: p.player, seq, action: a });
@@ -719,15 +746,18 @@ function battle(m: Match) {
     const sx = Math.min(W - 1, Math.floor(((ev.clientX - rect.left) / rect.width) * W));
     const sy = Math.min(H - 1, Math.floor(((ev.clientY - rect.top) / rect.height) * H));
     const x = flip ? W - 1 - sx : sx, y = flip ? H - 1 - sy : sy;
+    if (targeting) {
+      const sa = spellActs(targeting).find(a => a.x === x && a.y === y);
+      targeting = null;
+      if (sa) { void play(sa); return; }
+      hud(); return;
+    }
     const act = actsFor(sel).find(a => a.x === x && a.y === y);
     if (act) { void play(act); return; }
     const q = pieceAt(s, x, y);
     sel = q && q.side === me && sel !== q.id ? q.id : q && q.side === foe ? q.id : null;
     hud();
   });
-  const kingAct = (type: "rally" | "curse") => { const k = s.pieces.find(q => q.alive && q.side === me && q.kind === "king"); if (k) void play({ type, pieceId: k.id, x: k.x, y: k.y }); };
-  $("rally").onclick = () => kingAct("rally");
-  $("curse").onclick = () => kingAct("curse");
   $("resign").onclick = () => {
     if (s.winner) return;
     if (m.mode === "pvp") void pvp("leave", { roomId: m.roomId, player: p.player });

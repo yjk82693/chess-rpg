@@ -1,5 +1,5 @@
 import type { Db } from "mongodb";
-import { newCollection, recordResult, unlockWithGems, upgrade, setDeckCard, deckWithLevels, type Collection, type ChestDraw } from "./cards.js";
+import { newCollection, normalizeCollection, recordResult, unlockWithGems, upgrade, setDeckCard, deckWithLevels, type Collection, type ChestDraw } from "./cards.js";
 import { LADDER, ladderReward, recommendDecks } from "./ladder.js";
 import type { ChessPersonality, Deck } from "./chess.js";
 
@@ -10,7 +10,7 @@ const matches = (db: Db) => db.collection("chess_matches");
 
 export async function getProfile(db: Db, player: string): Promise<ChessProfile> {
   const found = await players(db).findOne({ player }, { projection: { _id: 0 } });
-  if (found) return found as ChessProfile;
+  if (found) { const f = found as ChessProfile; normalizeCollection(f.collection); return f; }
   const p: ChessProfile = { player, collection: newCollection(), ladderCleared: 0, trophies: 0, updatedAt: new Date() };
   await players(db).insertOne({ ...p });
   return p;

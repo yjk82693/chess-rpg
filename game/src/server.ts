@@ -10,6 +10,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import { validatePlaybook } from "./executor.js";
 import { updateRival } from "./rival.js";
 import { chessRoute } from "./chess-routes.js";
+import { authRoute } from "./auth.js";
 import { pvpRoute } from "./pvp.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -97,6 +98,11 @@ async function main() {
         const rival = process.env.RIVAL_RULES === "off" ? null : await updateRival(db, player);
         if (rival) console.log(`rival-${player} gen ${rival.generation}: ${rival.rationale}`);
         return send(res, 200, { ok: true, id: String(ins.insertedId), battles: n, rival });
+      }
+
+      if (url.pathname.startsWith("/api/auth/")) {
+        const out = await authRoute(req.method ?? "GET", url, () => readJson(req), db, req.headers.authorization);
+        if (out) return send(res, out.code, out.body);
       }
 
       if (url.pathname.startsWith("/api/chess/")) {

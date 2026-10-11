@@ -153,10 +153,11 @@ export class BoardRenderer {
     const c = this.ctx;
     const cx = u.x * TILE + TILE / 2, cy = u.y * TILE + TILE / 2 - 4, r = TILE * 0.34;
     c.globalAlpha = faded ? 0.35 : 1;
-    c.fillStyle = COLORS.team[u.team];
+    const isWhite = u.team === "player";
+    c.fillStyle = isWhite ? "#f4efe4" : "#23262e";
     c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = u.team === "player" ? COLORS.gold : "#fff"; c.lineWidth = 2; c.stroke();
-    c.fillStyle = "#fff";
+    c.strokeStyle = isWhite ? COLORS.gold : "#e0524b"; c.lineWidth = 3; c.stroke();
+    c.fillStyle = isWhite ? "#23262e" : "#f4efe4";
     c.font = `${Math.round(TILE * 0.42)}px "Apple Symbols", "Segoe UI Symbol", serif`;
     c.textAlign = "center"; c.textBaseline = "middle";
     c.fillText(CLASSES[u.cls].glyph + "\uFE0E", cx, cy + 1);

@@ -36,7 +36,7 @@ export async function chessRoute(method: string, url: URL, body: () => Promise<a
     }
     if (p === "card") {
       const op = b.op as CardOp["op"];
-      if (!["upgrade", "unlock", "equip"].includes(op)) return bad("bad op");
+      if (!["upgrade", "unlock", "equip", "buy", "open"].includes(op)) return bad("bad op");
       return { code: 200, body: await cardOp(db, player, { op, card: String(b.card ?? "") }) };
     }
     if (p === "gems") {

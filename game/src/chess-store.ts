@@ -1,5 +1,5 @@
 import type { Db } from "mongodb";
-import { newCollection, normalizeCollection, recordResult, unlockWithGems, upgrade, setDeckCard, deckWithLevels, type Collection, type ChestDraw } from "./cards.js";
+import { newCollection, normalizeCollection, recordResult, unlockWithGems, upgrade, setDeckCard, deckWithLevels, buyCard, openStored, type Collection, type ChestDraw } from "./cards.js";
 import { LADDER, ladderReward, recommendDecks } from "./ladder.js";
 import type { ChessPersonality, Deck } from "./chess.js";
 
@@ -38,10 +38,10 @@ export async function recordChessResult(db: Db, r: ResultInput): Promise<ResultO
   return { profile: p, gems, chest, firstClear, trophies };
 }
 
-export type CardOp = { op: "upgrade" | "unlock" | "equip"; card: string };
+export type CardOp = { op: "upgrade" | "unlock" | "equip" | "buy" | "open"; card: string };
 export async function cardOp(db: Db, player: string, o: CardOp): Promise<{ ok: boolean; profile: ChessProfile }> {
   const p = await getProfile(db, player);
-  const ok = o.op === "upgrade" ? upgrade(p.collection, o.card) : o.op === "unlock" ? unlockWithGems(p.collection, o.card) : setDeckCard(p.collection, o.card);
+  const ok = o.op === "upgrade" ? upgrade(p.collection, o.card) : o.op === "unlock" ? unlockWithGems(p.collection, o.card) : o.op === "buy" ? buyCard(p.collection, o.card) : o.op === "open" ? openStored(p.collection) : setDeckCard(p.collection, o.card);
   if (ok) await saveProfile(db, p);
   return { ok, profile: p };
 }

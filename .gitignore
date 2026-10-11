@@ -5,3 +5,4 @@ __pycache__/
 .env
 .DS_Store
 viewer/public/data/*.json
+shared/tg-src.txt

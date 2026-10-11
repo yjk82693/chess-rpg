@@ -5,7 +5,7 @@ import {
   type ChessAction, type ChessEvent, type ChessPersonality, type ChessState, type Deck, type Piece, type Side,
 } from "../../game/src/chess.js";
 import {
-  GEM_PACKS, MAX_LEVEL, canUpgrade, unlockCost, deckWithLevels, newCollection, normalizeCollection, recordResult, setDeckCard, unlockWithGems,
+  GEM_PACKS, MAX_LEVEL, canUpgrade, unlockCost, deckWithLevels, newCollection, normalizeCollection, recordResult, setDeckCard, unlockWithGems, buyCard, openStored,
   upgrade, upgradeCost, type ChestDraw, type Collection,
 } from "../../game/src/cards.js";
 import { LADDER, ladderReward, recommendDecks, type DeckPick } from "../../game/src/ladder.js";
@@ -101,7 +101,7 @@ async function loadProfile(): Promise<Profile> {
   return { player: playerId(), collection: newCollection(), ladderCleared: 0, trophies: 0 };
 }
 
-async function cardOp(op: "upgrade" | "unlock" | "equip", card: string): Promise<boolean> {
+async function cardOp(op: "upgrade" | "unlock" | "equip" | "buy" | "open", card: string): Promise<boolean> {
   if (!profile) return false;
   if (online) {
     const j = await api<{ ok: boolean; profile: Profile }>("card", { player: profile.player, op, card });
@@ -109,7 +109,7 @@ async function cardOp(op: "upgrade" | "unlock" | "equip", card: string): Promise
     return false;
   }
   const c = profile.collection;
-  const ok = op === "upgrade" ? upgrade(c, card) : op === "unlock" ? unlockWithGems(c, card) : setDeckCard(c, card);
+  const ok = op === "upgrade" ? upgrade(c, card) : op === "unlock" ? unlockWithGems(c, card) : op === "buy" ? buyCard(c, card) : op === "open" ? openStored(c) : setDeckCard(c, card);
   saveLocal();
   return ok;
 }
@@ -572,6 +572,25 @@ function cardsPane(recs: DeckPick[] | null = null, recLevel = Math.min(LADDER.le
 }
 
 // ---------- Shop ----------
+function shopExtras() {
+  const c = profile!.collection;
+  const stored = c.stored ?? 0;
+  const chests = stored
+    ? `<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">${Array.from({ length: Math.min(stored, 8) }, () => `<button class="btn" data-open="1" title="Open chest" style="padding:6px">${ico("chest", 64, "📦")}</button>`).join("")}</div><p class="muted small">${stored} unopened · click a chest to open it</p>`
+    : `<p class="muted small">No chests stored. Win battles to earn chests.</p>`;
+  const ids = [...Object.keys(CARDS), ...Object.keys(SPELLS)].filter(id => c.cards[id]);
+  const tiles = ids.map(id => {
+    const o = c.cards[id]!, cost = unlockCost(id), maxed = o.unlocked && o.level >= MAX_LEVEL;
+    const label = !o.unlocked ? `Unlock 💎 ${cost}` : maxed ? "Max level" : `Buy copy 💎 ${cost}`;
+    return cardTile(id, `<button class="btn sm primary" data-buy="${id}" style="margin-top:6px" ${maxed || c.gems < cost ? "disabled" : ""}>${label}</button>`);
+  }).join("");
+  return `<div class="panel" style="max-width:880px;margin:14px auto 0;text-align:center"><h3>${ico("chest", 28, "📦")}Chest storage</h3>${chests}
+      <div id="shop-reveal" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px"></div></div>
+    <h3 class="sub-h" style="text-align:center;margin-top:18px">Buy cards</h3>
+    <p class="muted small" style="text-align:center">Price by rarity: Common 60 · Rare 120 · Super Rare 180 · Epic 240 · Legend 300. Owned cards get +1 copy toward the next level.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;max-width:1100px;margin:0 auto">${tiles}</div>`;
+}
+
 function shopPane(msg = "") {
   const el = $("pane-shop");
   el.innerHTML = `<h2 class="cr-h">Shop</h2><p class="cr-sub">Gems unlock cards instantly</p>
@@ -580,8 +599,9 @@ function shopPane(msg = "") {
         <div class="glyph">💎</div><div class="name">${k.gems} gems</div><div class="stat-big">${k.price}</div>
         <button class="btn primary" data-pack="${k.id}" style="margin-top:8px">Buy</button></div>`).join("")}
     </div>
+    ${shopExtras()}
     <div class="panel" style="max-width:640px;margin:14px auto 0"><h3>How it works</h3>
-      <p class="small">Every win opens a chest of 5 random cards. Rarer cards drop less often (Common, Rare, Super Rare, Epic, Legend = deck cost 1 to 5). New cards unlock; duplicates upgrade cards up to Lv ${MAX_LEVEL}. Ladder wins pay gems, first clears pay triple. Unlock any card instantly with gems: 💎 60 per point of deck cost (Common 60, Legend 300).</p>
+      <p class="small">Every win stores a chest of 5 random cards; open it here in the Shop. Rarer cards drop less often (Common, Rare, Super Rare, Epic, Legend = deck cost 1 to 5). New cards unlock; duplicates upgrade cards up to Lv ${MAX_LEVEL}. Ladder wins pay gems, first clears pay triple. Unlock any card instantly with gems: 💎 60 per point of deck cost (Common 60, Legend 300).</p>
       <p class="muted small">${STRIPE_LINK ? "Checkout opens in a new tab." : "Demo mode: purchases are recorded in MongoDB and gems are granted without payment."}</p>
       <p class="muted small">${esc(msg)}</p></div>`;
   el.querySelectorAll<HTMLElement>("[data-pack]").forEach(b => b.addEventListener("click", async () => {
@@ -593,6 +613,22 @@ function shopPane(msg = "") {
     } else { profile!.collection.gems += pack.gems; saveLocal(); }
     refreshTop(); cardsPane();
     shopPane(`+${pack.gems} gems added.`);
+  }));
+  el.querySelectorAll<HTMLElement>("[data-open]").forEach(b => b.addEventListener("click", async () => {
+    el.querySelectorAll<HTMLElement>("[data-open]").forEach(x => x.setAttribute("disabled", ""));
+    const ok = await cardOp("open", "chest");
+    const draws = ok ? (profile!.collection.lastChest ?? []) : [];
+    refreshTop(); cardsPane();
+    shopPane(ok ? `Opened a chest: ${draws.length} cards.` : "Could not open the chest.");
+    const rv = document.getElementById("shop-reveal");
+    draws.forEach((d, i) => window.setTimeout(() => rv?.insertAdjacentHTML("beforeend",
+      cardTile(d.card, `<div class="chip" style="color:var(--gold);margin-top:6px">${d.newlyUnlocked ? "NEW! " : ""}×${d.copies}</div>`)), 350 * (i + 1)));
+  }));
+  el.querySelectorAll<HTMLElement>("[data-buy]").forEach(b => b.addEventListener("click", async () => {
+    const id = b.dataset.buy!;
+    const ok = await cardOp("buy", id);
+    refreshTop(); cardsPane();
+    shopPane(ok ? `Bought ${cardLabel(id)}.` : "Not enough gems.");
   }));
 }
 
@@ -787,7 +823,7 @@ function battle(m: Match) {
     c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
     c.strokeStyle = sel === pc.id ? COLORS.cursor : pc.side === me ? COLORS.gold : "#e0524b"; c.lineWidth = sel === pc.id ? 4 : 3; c.stroke();
     const artId = pc.kind === "king" ? kingArt(pc.side === me) : pc.card;
-    if (spriteOk(artId)) c.drawImage(sprites[artId]!, cx - r, cy - r, r * 2, r * 2);
+    if (spriteOk(artId)) c.drawImage(sprites[artId]!, cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7);
     else {
       c.fillStyle = isWhite ? "#23262e" : "#f4efe4"; c.font = `${Math.round(TILE * 0.46)}px "Apple Symbols", "Segoe UI Symbol", serif`;
       c.textAlign = "center"; c.textBaseline = "middle";
@@ -971,7 +1007,7 @@ function battle(m: Match) {
     panel.style.cssText = "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:50;max-width:760px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)";
     panel.innerHTML = `<h3>${won ? "Victory!" : s.winner === "draw" ? "Draw" : "Defeat"}${r.firstClear ? " · First clear ×3" : ""}</h3>
       <p>${r.gems ? `💎 +${r.gems} gems` : "No gems this time."}${r.trophies ? ` · 🏆 ${r.trophies > 0 ? "+" : ""}${r.trophies}` : ""}</p>
-      ${r.chest.length ? `<h4 class="sub-h">${ico("chest", 32, "📦")}Chest · ${r.chest.length} cards</h4><div id="chest" style="display:flex;gap:8px;flex-wrap:wrap"></div>` : m.mode === "pvp" ? "" : `<p class="muted small">Win to earn a chest of 5 cards.</p>`}
+      ${r.chest.length ? `<h4 class="sub-h">${ico("chest", 32, "📦")}Chest · ${r.chest.length} cards</h4><div id="chest" style="display:flex;gap:8px;flex-wrap:wrap"></div>` : m.mode === "pvp" ? "" : won ? `<p class="small">${ico("chest", 28, "📦")}Chest stored! Open it in the Shop.</p>` : `<p class="muted small">Win to earn a chest of 5 cards.</p>`}
       <div class="row" style="margin-top:12px">${m.mode === "pvp" ? "" : `<button class="btn primary" id="again">Rematch</button>`}<button class="btn" id="tohome">Home</button><button class="btn" id="todeck">Cards</button></div>`;
     app().appendChild(panel);
     const chestEl = document.getElementById("chest");

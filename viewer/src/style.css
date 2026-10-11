@@ -133,3 +133,28 @@ label.field.inline { flex-direction: row; align-items: center; gap: 8px; }
   .training, .prep, .settings { grid-template-columns: 1fr; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* solo battle */
+.forecast { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fc { border: 1px solid var(--gold-dim); border-radius: 2px; padding: 8px; background: rgba(0,0,0,0.2); }
+.fc.you { border-left: 3px solid var(--blue); }
+.fc.foe { border-left: 3px solid var(--red); }
+.fc-name { font-family: var(--serif); color: var(--gold-hi); margin-bottom: 4px; }
+.fc-row { display: flex; justify-content: space-between; font-size: 13px; }
+.fc-row span { color: var(--muted); }
+.react { margin-top: 8px; color: #ffe23d; font-size: 12px; }
+.tri { font-size: 12px; margin-top: 4px; }
+.tri.up { color: var(--win); }
+.tri.down { color: var(--loss); }
+.kill { color: var(--gold-hi); font-family: var(--serif); letter-spacing: 1px; margin-top: 6px; }
+.cmd-menu { display: flex; flex-direction: column; gap: 6px; }
+.cmd-menu .btn.cur { border-color: var(--gold); color: var(--gold-hi); box-shadow: 0 0 12px rgba(201,162,74,0.35); }
+.roster { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; }
+.roster li { display: flex; justify-content: space-between; padding: 4px 6px; cursor: pointer; border-radius: 2px; }
+.roster li:hover { background: rgba(255,255,255,0.05); }
+.roster li.done { opacity: 0.45; }
+.notice { color: var(--loss); font-size: 12px; margin-top: 6px; }
+.win-text, .loss-text { font-family: var(--serif); font-size: 24px; letter-spacing: 2px; }
+.win-text { color: var(--gold-hi); }
+.loss-text { color: var(--loss); }
+.notes { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: #e6dcc0; }

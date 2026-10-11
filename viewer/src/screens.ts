@@ -14,7 +14,7 @@ import { Frame, battleAt, buildFrames, describe, initialUnits } from "./replay.j
 import { GenExport, RunExport, frozenGens, fullGens, partyOf, playbookOf } from "./runs.js";
 import { COLORS, TILE } from "./theme.js";
 
-export type ScreenName = "menu" | "training" | "prep" | "battle" | "settings";
+export type ScreenName = "menu" | "training" | "prep" | "battle" | "settings" | "solo";
 
 export interface AppState {
   run: RunExport;
@@ -84,7 +84,7 @@ function menuScreen() {
       <button class="btn" data-go="training">Training Grounds<small>Watch the AI coach improve your army</small></button>
       <button class="btn" data-go="prep">Battle Prep<small>Party, loadout and stage</small></button>
       <button class="btn" data-go="battle">Battle<small>Replay a battle with the selected playbook</small></button>
-      <button class="btn" disabled>Solo Battle<small>Coming next: a rival that adapts to you</small></button>
+      <button class="btn" data-go="solo">Solo Battle<small>Command your army yourself</small></button>
       <button class="btn" data-go="settings">Settings<small>Run data and playback</small></button>
     </div>
     <div class="menu-foot">${S.run.sample ? "Sample data · export a run to load live generations" : `Run ${esc(S.run.run_id)} · ${n} generation${n === 1 ? "" : "s"}`}</div>
@@ -214,7 +214,7 @@ function prepScreen() {
           <div class="shop">${Object.values(Item).map(it => `<span>${cap(it)}</span><span class="muted">${ITEM_PRICE[it]} G</span>`).join("")}</div>
           <p class="hint" style="margin-top:8px">The Quartermaster buys the loadout each generation within ${SHOP_BUDGET} G.</p>
         </div>
-        <button class="btn primary big" data-go="battle">Start Battle</button>
+        <div class="row tight"><button class="btn primary big" data-go="solo">Play Solo</button><button class="btn big" data-go="battle">Watch AI</button></div>
       </div>
     </div>
   </div>`;
@@ -471,3 +471,10 @@ function settingsScreen() {
   $<HTMLInputElement>("spd").oninput = e => { S.speed = Number((e.target as HTMLInputElement).value); };
   bindGo();
 }
+
+// ---------- shared with solo.ts ----------
+import { soloScreen } from "./solo.js";
+export { bindGo, cap, curGen, esc, topbar };
+export const byId = $;
+export const getState = () => S;
+export const setCleanup = (fn: () => void) => { cleanup = fn; };

@@ -30,6 +30,7 @@ export interface AppState {
 let app: HTMLElement;
 let S: AppState;
 let cleanup: (() => void) | null = null;
+let current: ScreenName = "menu";
 
 export function start(root: HTMLElement, state: AppState) {
   app = root;
@@ -40,6 +41,7 @@ export function start(root: HTMLElement, state: AppState) {
 export function go(name: ScreenName) {
   cleanup?.();
   cleanup = null;
+  current = name;
   ({ menu: menuScreen, training: trainingScreen, prep: prepScreen, battle: battleScreen, settings: settingsScreen, solo: soloScreen })[name]();
 }
 
@@ -478,3 +480,8 @@ export { bindGo, cap, curGen, esc, topbar };
 export const byId = $;
 export const getState = () => S;
 export const setCleanup = (fn: () => void) => { cleanup = fn; };
+
+// Re-render only screens that are safe to refresh (never interrupts Battle or Solo).
+export function refreshIfIdle() {
+  if (current === "training" || current === "menu") go(current);
+}

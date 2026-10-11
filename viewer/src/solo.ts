@@ -13,6 +13,8 @@ import { Frame, describe, initialUnits } from "./replay.js";
 import { partyOf } from "./runs.js";
 import { bindGo, byId, cap, curGen, esc, getState, go, setCleanup, topbar } from "./screens.js";
 import { COLORS } from "./theme.js";
+import { Rival, fetchRival, playerId, postSolo, setPlayerId } from "./api.js";
+import { playbookPolicy } from "../../game/src/executor.js";
 
 type Mode = "idle" | "move" | "menu" | "target" | "busy" | "over";
 interface MenuItem { key: "attack" | "item" | "wait"; label: string; enabled: boolean; }
@@ -60,7 +62,9 @@ export function soloScreen() {
   const g = curGen();
   const party = partyOf(g);
   const map = getMap(S.mapId);
-  const npcPolicy = NPC_POLICIES[S.npc];
+  let npcPolicy = NPC_POLICIES[S.npc];
+  let rival: Rival | null = null;
+  let saved = "";
   const b = createBattle(S.mapId, party, NPC_ARMIES[S.npc], S.seed);
   b.turn = 1;
   const errors: string[] = [];
@@ -82,7 +86,7 @@ export function soloScreen() {
   const delay = () => Math.max(160, 760 - S.speed * 55);
 
   document.getElementById("app")!.innerHTML = `<div class="screen">
-    ${topbar(`Solo Battle · ${esc(map.name)} <span class="vs">vs ${cap(S.npc)}</span>`, `<span id="turninfo" class="muted"></span>`)}
+    ${topbar(`Solo Battle · ${esc(map.name)} <span class="vs">vs ${cap(S.npc)}</span>`, `<span id="turninfo" class="muted"></span><span class="chip" id="rivalchip" style="color:var(--gold)">Rival: loading</span><span class="muted small">Player: ${esc(playerId())}</span><button class="btn sm" id="rename">Rename</button>`)}
     <div class="battle">
       <div class="panel unit-panel" id="unitpanel"></div>
       <div class="center-col">
@@ -159,7 +163,7 @@ export function soloScreen() {
       el.innerHTML = `<div class="${win ? "win-text" : "loss-text"}">${win ? "Victory" : "Defeat"}</div>
         <p class="muted small">by ${result.reason} on turn ${result.turns} · score ${result.score.toFixed(2)}</p>
         <ul class="notes">${(summary?.notes ?? []).map(n => `<li>${esc(n)}</li>`).join("")}</ul>
-        <p class="hint">Next: your rival will study battles like this one and adapt.</p>
+        <p class="hint">${esc(saved || "Saving battle...")}</p>
         <div class="row tight" style="margin-top:10px">
           <button class="btn sm primary" id="again">Play again</button>
           <button class="btn sm" data-go="battle">Watch AI here</button>
@@ -254,6 +258,8 @@ export function soloScreen() {
     const moved = sel && dest && (mode === "menu" || mode === "target") ? { id: sel, to: dest } : undefined;
     board.draw({ grid: b.grid, frame: frameOf(b, lastEvent, moved), cursor, blue, red });
     byId("turninfo").textContent = `Turn ${b.turn} / ${MAX_TURNS} · ${phase === Team.Player ? "Player" : "Enemy"} Phase`;
+    byId("rivalchip").textContent = rival ? "Rival Gen " + rival.generation : "Rival: base AI";
+    byId("rivalchip").title = rival ? rival.rationale : "";
     const banner = byId("banner");
     banner.className = `banner ${mode === "over" && result ? (result.winner === Team.Player ? "win" : "loss") : ""}`;
     banner.textContent = mode === "over" && result ? (result.winner === Team.Player ? "VICTORY" : "DEFEAT") : "";
@@ -292,6 +298,7 @@ export function soloScreen() {
     };
     summary = summarize({ ...result, npc: S.npc });
     lastSolo = { result, summary };
+    postSolo({ player: playerId(), map_id: S.mapId, npc_id: S.npc, seed: S.seed, rival_playbook_id: rival ? rival.id : null, rival_generation: rival ? rival.generation : null, result, summary, party }).then(msg => { saved = msg; if (mode === "over") render(); });
     mode = "over";
     lastEvent = null;
     render();
@@ -453,6 +460,7 @@ export function soloScreen() {
   byId("confirm").onclick = () => { if (mode !== "busy" && mode !== "over") confirm(); };
   byId("cancel").onclick = () => { if (mode !== "busy" && mode !== "over") cancel(); };
   byId("endturn").onclick = () => { if (mode === "idle") enemyPhase(); };
+  byId("rename").onclick = () => { const n = prompt("Player name (letters, numbers, - or _)", playerId()); if (n && setPlayerId(n)) go("solo"); };
   byId<HTMLInputElement>("speed").oninput = e => { S.speed = Number((e.target as HTMLInputElement).value); };
   canvas.addEventListener("click", ev => {
     if (mode === "busy" || mode === "over" || mode === "menu") return;
@@ -485,5 +493,10 @@ export function soloScreen() {
   });
 
   bindGo();
-  playerPhase();
+  render();
+  fetchRival(playerId()).then(r => {
+    rival = r;
+    if (r) npcPolicy = playbookPolicy(r.playbook, "rival");
+    playerPhase();
+  });
 }

@@ -18,6 +18,7 @@ const STRIPE_LINK = "";
 const GLYPH: Record<string, string> = { pawn: "♟", knight: "♞", bishop: "♝", rook: "♜", queen: "♛", king: "♚" };
 const ROLE_LABEL: Record<string, string> = { pawn: "Pawn card", knight: "Knight", bishop: "Bishop", rook: "Rook" };
 const ROLES = ["pawn", "knight", "bishop", "rook"] as const;
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 type Tab = "shop" | "cards" | "arena" | "rank";
 const TABS: { id: Tab; icon: string; label: string }[] = [
@@ -500,7 +501,11 @@ function battle(m: Match) {
   let fx: Fx[] = [];
   let done = false;
   let logLen = 0;
-  let targeting: string | null = null;
+  type MenuItem = { key: string; label: string; acts: ChessAction[] };
+  let mode: "idle" | "menu" | "target" = "idle";
+  let menu: MenuItem[] = [];
+  let menuIdx = 0;
+  let choice: MenuItem | null = null;
   let cursor = { x: 4, y: me === "P" ? 7 : 0 };
   const timers: number[] = [];
 
@@ -509,13 +514,13 @@ function battle(m: Match) {
     <div class="battle">
       <div class="panel unit-panel" id="info"></div>
       <div class="center-col">
-        <div class="board"><canvas id="cboard"></canvas><div class="banner" id="banner"></div></div>
+        <div class="board" style="position:relative"><canvas id="cboard"></canvas><div class="banner" id="banner"></div><div id="amenu" class="panel" style="position:absolute;display:none;z-index:6;min-width:170px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.55)"></div></div>
         <div class="panel bottombar"><div class="transport">
           <div class="row tight">
             <button class="btn sm primary" id="hintbtn">Ask the Coach</button>
             <span class="muted small">King's spells:</span><div class="cr-spellbar" id="spellbar"></div>
           </div>
-          <div class="hint" id="hinttext">Arrows move the cursor · Space selects / confirms · Esc cancels. Blue: can go · Red: blocked · Border: red attack, green heal, purple queen strike.</div>
+          <div class="hint" id="hinttext">Arrows move · Space on your unit opens its actions · Space confirms · Esc goes back. Blue: can go · Red: blocked · Border: red attack, green heal, purple queen strike.</div>
         </div></div>
       </div>
       <div class="side-col">
@@ -572,11 +577,11 @@ function battle(m: Match) {
     c.fillStyle = "rgba(0,0,0,0.45)"; c.font = "11px Inter, sans-serif";
     for (let x = 0; x < W; x++) c.fillText("abcdefgh"[x]!, SX(x) + 3, size - 3);
     for (let y = 0; y < H; y++) c.fillText(String(8 - y), 3, SY(y) + 12);
-    const range = (pc: Piece, strong: boolean) => {
-      const legal = pieceActions(s, pc).filter(a => a.type !== "spell");
+    const range = (pc: Piece, strong: boolean, only?: ChessAction[]) => {
+      const legal = only ?? pieceActions(s, pc).filter(a => a.type !== "spell");
       const ok = new Set(legal.map(a => `${a.x},${a.y}`));
       const k = strong ? 1 : 0.45;
-      for (const q of patternSquares(pc)) if (!ok.has(`${q.x},${q.y}`)) {
+      if (!only || only[0]?.type !== "spell") for (const q of patternSquares(pc)) if (!ok.has(`${q.x},${q.y}`)) {
         c.fillStyle = `rgba(230,70,60,${0.32 * k})`;
         c.fillRect(SX(q.x) + 2, SY(q.y) + 2, TILE - 4, TILE - 4);
       }
@@ -584,17 +589,16 @@ function battle(m: Match) {
         c.fillStyle = `rgba(80,140,255,${0.45 * k})`;
         c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
         if (a.type !== "move") {
-          c.strokeStyle = a.type === "attack" ? "#ff4d4d" : a.type === "heal" ? "#5fd07e" : "#c58bff";
+          c.strokeStyle = a.type === "attack" ? "#ff4d4d" : a.type === "heal" ? "#5fd07e" : a.type === "spell" ? "#ffb020" : "#c58bff";
           c.lineWidth = strong ? 3 : 2;
           c.strokeRect(SX(a.x) + 3, SY(a.y) + 3, TILE - 6, TILE - 6);
         }
       }
     };
-    if (sel) { const sp = byIdC(s, sel); if (sp?.alive) range(sp, true); }
-    else if (!targeting) { const under = pieceAt(s, cursor.x, cursor.y); if (under) range(under, false); }
-    if (targeting) for (const a of spellActs(targeting)) {
-      c.fillStyle = "rgba(255,140,40,0.42)"; c.fillRect(SX(a.x) + 2, SY(a.y) + 2, TILE - 4, TILE - 4);
-    }
+    const selP = sel ? byIdC(s, sel) : undefined;
+    if (mode === "target" && choice && selP?.alive) range(selP, true, choice.acts);
+    else if (selP?.alive) range(selP, true);
+    else { const under = pieceAt(s, cursor.x, cursor.y); if (under) range(under, false); }
     if (hint) {
       const hp = byIdC(s, hint.pieceId);
       c.strokeStyle = COLORS.gold; c.lineWidth = 4; c.setLineDash([6, 4]);
@@ -651,15 +655,53 @@ function battle(m: Match) {
     if (pc.level > 1) { c.fillStyle = COLORS.gold; c.font = "bold 11px Inter, sans-serif"; c.fillText(`L${pc.level}`, SX(pc.x) + TILE - 20, SY(pc.y) + 13); }
   };
 
+  const skillsOf = (pc: Piece): { name: string; desc: string; ready: boolean; color?: string }[] => {
+    const cd = CARDS[pc.card]!;
+    const fl = pc.body === "flier";
+    switch (pc.kind) {
+      case "pawn": return [
+        { name: "Advance", desc: "Forward 1 (2 from start), or sidestep. Crosses the river only on bridges.", ready: true },
+        { name: "Capture", desc: "Diagonal: captures pawns and queens, chips HP off heroes.", ready: true },
+        { name: "Promotion", desc: "Reaching the far rank turns it into a new Queen with 3 strikes.", ready: true },
+      ];
+      case "knight": return [
+        { name: "Leap", desc: fl ? "L-jump; flies, so it can land on the river." : "L-jump over anything; cannot land on the river.", ready: true },
+        { name: `${cap(pc.weapon)} strike`, desc: "RPG combat with counters; fast units strike twice.", ready: true },
+      ];
+      case "bishop": return pc.weapon === "staff"
+        ? [{ name: "Heal", desc: `Restores ${(cd.heal ?? 10) + (pc.level - 1) * 2} HP to an ally on its diagonals.`, ready: true }]
+        : [{ name: "Arcane Bolt", desc: "Magic down the diagonals: x2 vs armored, x0.5 vs fliers. Counters at range 2.", ready: true }];
+      case "rook": return [
+        { name: "Charge", desc: fl ? "Slides along ranks and files, flying over the river." : "Slides along ranks and files.", ready: true },
+        { name: `${cap(pc.weapon)} strike`, desc: "RPG combat with counters.", ready: true },
+      ];
+      case "queen": return [{ name: "Storm Strike", desc: `Instantly kills any non-king piece along her lines. ${pc.charges} left, then she vanishes. Can be captured.`, ready: pc.charges > 0 }];
+      case "king": return [
+        { name: "Royal guard", desc: "Moves 1 square, strikes adjacent foes. Lose him, lose the game.", ready: true },
+        ...s.spells[pc.side].map(id => {
+          const sp = SPELLS[id]!, used = s.used[pc.side].includes(id), cdn = s.kingCd[pc.side];
+          return { name: `✦ ${sp.name}${used ? " · used" : cdn > 0 ? ` · cd ${cdn}` : " · ready"}`, desc: sp.blurb, ready: !used && cdn === 0, color: rarColor(id) };
+        }),
+      ];
+    }
+  };
+
   const info = () => {
-    const pc = sel ? byIdC(s, sel) : pieceAt(s, cursor.x, cursor.y);
+    const pc = pieceAt(s, cursor.x, cursor.y) ?? (sel ? byIdC(s, sel) : undefined);
     const aura = s.auras.map(a => `<span class="chip">${a.by === me ? "Your" : "Enemy"} ${a.kind === "ward" ? "bulwark" : a.kind}</span>`).join("")
       + `<div class="muted small" style="margin-top:6px">Enemy spells left: ${s.spells[foe].filter(id => !s.used[foe].includes(id)).map(id => SPELLS[id]!.name).join(", ") || "none"}</div>`;
     if (!pc) { $("info").innerHTML = `<h3>Piece</h3><p class="muted small">Select one of your pieces.</p><div class="tags">${aura}</div>`; return; }
     const cd = CARDS[pc.card]!;
     const r = pc.hp / pc.maxHp;
+    const portrait = spriteOk(pc.card)
+      ? `<img src="/assets/cards/${pc.card}.png" alt="" style="width:88px;height:88px;object-fit:contain;border-radius:12px;background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">`
+      : `<div style="width:88px;height:88px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:56px;color:#fff;background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">${GLYPH[pc.kind]}\uFE0E</div>`;
+    const skills = skillsOf(pc).map(k => `<li style="opacity:${k.ready ? 1 : 0.5}"><b style="color:${k.color ?? (k.ready ? "#ecd28c" : "#98a1b6")}">${esc(k.name)}</b><div class="muted small">${esc(k.desc)}</div></li>`).join("");
+    const nActs = pc.side === me && s.turn === me ? pieceActions(s, pc).length : 0;
     $("info").innerHTML = `<h3>${pc.side === me ? "Your" : "Enemy"} ${esc(cd.name)}</h3>
-      <div class="uhead"><div class="uglyph" style="background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">${GLYPH[pc.kind]}\uFE0E</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">${portrait}<div>${cd.cost ? rarBadge(pc.card) : ""}<div class="muted small" style="margin-top:4px">${pc.side === me && s.turn === me ? `${nActs} action${nActs === 1 ? "" : "s"} available` : ""}</div></div></div>
+      <h4 class="sub-h">Skills</h4><ul class="log" style="max-height:none">${skills}</ul>
+      <div class="uhead" style="display:none"><div class="uglyph" style="background:${pc.side === me ? COLORS.team.player : COLORS.team.npc}">${GLYPH[pc.kind]}\uFE0E</div>
       <div><div class="uname">${esc(cd.name)} · Lv ${pc.level}</div><div class="muted small">${pc.kind} · ${pc.weapon} · ${pc.body}</div></div></div>
       ${pc.kind === "queen" ? `<p class="small">Strikes left: ${pc.charges}</p>` : `<div class="hpbar"><div style="width:${r * 100}%;background:${r > 0.6 ? COLORS.hpGood : r > 0.3 ? COLORS.hpMid : COLORS.hpLow}"></div></div>
       <div class="muted small">HP ${pc.hp} / ${pc.maxHp}</div>
@@ -694,18 +736,56 @@ function battle(m: Match) {
     $("spellbar").innerHTML = s.spells[me].map(id => {
       const sp = SPELLS[id]!, used = s.used[me].includes(id), ok = myTurn && !used && spellActs(id).length > 0;
       const note = used ? "used" : s.kingCd[me] > 0 ? `cd ${s.kingCd[me]}` : `${spellPower(s, me, id)}`;
-      return `<button class="btn sm cr-spell ${targeting === id ? "on" : ""}" data-spell="${id}" ${ok ? "" : "disabled"} title="${esc(sp.blurb)}" style="border-color:${rarColor(id)};color:${rarColor(id)}">✦ ${esc(sp.name)} <span class="muted small">${note}</span></button>`;
+      return `<button class="btn sm cr-spell ${choice?.key === `spell:${id}` ? "on" : ""}" data-spell="${id}" ${ok ? "" : "disabled"} title="${esc(sp.blurb)}" style="border-color:${rarColor(id)};color:${rarColor(id)}">✦ ${esc(sp.name)} <span class="muted small">${note}</span></button>`;
     }).join("") || `<span class="muted small">none equipped</span>`;
     $("spellbar").querySelectorAll<HTMLElement>("[data-spell]").forEach(b => b.addEventListener("click", () => {
-      const id = b.dataset.spell!;
-      const sp = SPELLS[id]!;
-      sel = null;
-      if (sp.target === "square") { targeting = targeting === id ? null : id; $("hinttext").textContent = targeting ? `Pick a square for ${sp.name} (orange). Click again to cancel.` : ""; hud(); return; }
-      const a = spellActs(id)[0];
-      if (a) void play(a);
+      const k = myKing();
+      if (!k) return;
+      openMenu(k);
+      const i = menu.findIndex(it => it.key === `spell:${b.dataset.spell}`);
+      if (i >= 0) choose(i);
     }));
+    const am = $("amenu");
+    const mp = sel ? byIdC(s, sel) : undefined;
+    if (mode === "menu" && mp) {
+      am.style.display = "";
+      am.style.left = `${Math.min(size - 180, SX(mp.x) + TILE + 4)}px`;
+      am.style.top = `${Math.min(size - 40 * menu.length - 20, SY(mp.y))}px`;
+      am.innerHTML = `<div class="muted small" style="margin-bottom:6px">${esc(CARDS[mp.card]!.name)} · choose an action</div>` + menu.map((it, i) =>
+        `<button class="btn sm ${i === menuIdx ? "primary" : ""}" data-mi="${i}" style="display:block;width:100%;text-align:left;margin:3px 0">${esc(it.label)}</button>`).join("");
+      am.querySelectorAll<HTMLElement>("[data-mi]").forEach(b => b.addEventListener("click", ev => { ev.stopPropagation(); choose(Number(b.dataset.mi)); }));
+    } else am.style.display = "none";
+    if (mode === "target" && choice) $("hinttext").textContent = `${choice.label}: pick a blue square · Space confirms · Esc goes back`;
     syncLog();
     info();
+  };
+
+  const buildMenu = (pc: Piece): MenuItem[] => {
+    const acts = pieceActions(s, pc);
+    const items: MenuItem[] = [];
+    const group = (type: ChessAction["type"], label: string) => { const a = acts.filter(x => x.type === type); if (a.length) items.push({ key: type, label: `${label} (${a.length})`, acts: a }); };
+    group("move", "Move"); group("attack", "Attack"); group("heal", "Heal"); group("cast", "⚡ Storm Strike");
+    for (const id of s.spells[pc.side]) {
+      const a = acts.filter(x => x.type === "spell" && x.spell === id);
+      if (a.length) items.push({ key: `spell:${id}`, label: `✦ ${SPELLS[id]!.name}${SPELLS[id]!.target === "square" ? " (aim)" : ""}`, acts: a });
+    }
+    items.push({ key: "cancel", label: "Cancel", acts: [] });
+    return items;
+  };
+  const openMenu = (pc: Piece) => {
+    sel = pc.id; menu = buildMenu(pc); menuIdx = 0; choice = null;
+    if (menu.length === 1) { mode = "idle"; $("hinttext").textContent = `${CARDS[pc.card]!.name} has no legal actions right now.`; hud(); return; }
+    mode = "menu"; hud();
+  };
+  const resetSel = () => { mode = "idle"; sel = null; menu = []; choice = null; };
+  const choose = (i: number) => {
+    const it = menu[i];
+    if (!it || it.key === "cancel") { resetSel(); hud(); return; }
+    if (it.key.startsWith("spell:") && it.acts.length === 1 && SPELLS[it.key.slice(6)]?.target === "none") { void play(it.acts[0]!); return; }
+    choice = it; mode = "target";
+    const first = it.acts[0];
+    if (first) cursor = { x: first.x, y: first.y };
+    hud();
   };
 
   const finish = async () => {
@@ -764,7 +844,7 @@ function battle(m: Match) {
   };
 
   const play = async (a: ChessAction) => {
-    hint = null; sel = null; targeting = null;
+    hint = null; resetSel();
     if (m.mode === "pvp") {
       busy = true; hud();
       const r = await pvp<{ ok: boolean; seq: number; state: ChessState }>("move", { roomId: m.roomId, player: p.player, seq, action: a });
@@ -794,16 +874,15 @@ function battle(m: Match) {
 
   const activate = (x: number, y: number) => {
     if (busy || s.winner || s.turn !== me) return;
-    if (targeting) {
-      const sa = spellActs(targeting).find(a => a.x === x && a.y === y);
-      targeting = null;
-      if (sa) { void play(sa); return; }
-      hud(); return;
+    if (mode === "target" && choice) {
+      const a = choice.acts.find(a => a.x === x && a.y === y);
+      if (a) { void play(a); return; }
+      mode = "menu"; choice = null; hud(); return;
     }
-    const act = actsFor(sel).find(a => a.x === x && a.y === y);
-    if (act) { void play(act); return; }
+    if (mode === "menu") resetSel();
     const q = pieceAt(s, x, y);
-    sel = q && q.side === me && sel !== q.id ? q.id : q && q.side === foe ? q.id : null;
+    if (q && q.side === me) { openMenu(q); return; }
+    sel = q ? q.id : null;
     hud();
   };
   canvas.addEventListener("click", ev => {
@@ -818,6 +897,13 @@ function battle(m: Match) {
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
     const dirs: Record<string, [number, number]> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
     const d = dirs[e.key];
+    if (mode === "menu") {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); menuIdx = (menuIdx + (e.key === "ArrowUp" ? menu.length - 1 : 1)) % menu.length; hud(); }
+      else if (e.key === " " || e.key === "Enter") { e.preventDefault(); choose(menuIdx); }
+      else if (e.key === "Escape") { resetSel(); hud(); }
+      return;
+    }
+    if (e.key === "Escape" && mode === "target") { mode = "menu"; choice = null; hud(); return; }
     if (d) {
       e.preventDefault();
       const dx = flip ? -d[0] : d[0], dy = flip ? -d[1] : d[1];
@@ -827,7 +913,7 @@ function battle(m: Match) {
       e.preventDefault();
       activate(cursor.x, cursor.y);
     } else if (e.key === "Escape") {
-      sel = null; targeting = null; hud();
+      resetSel(); hud();
     }
   };
   window.addEventListener("keydown", onKey);

@@ -114,13 +114,13 @@ export const MAPS: GameMap[] = [
 
   // ---------- Held-out (never shown to agents) ----------
   defineMap("lake_crossing", "Lake Crossing", "heldout",
-    "Lake with a fort island only Winged units can reach; ground fights go around.", [
+    "Lake split by a narrow causeway over twin forts; fliers can cross anywhere.", [
     "........",
     "..F..F..",
-    ".WWWWWW.",
+    ".WW.WWW.",
     ".WWTTWW.",
     ".WW..WW.",
-    ".WWWWWW.",
+    ".WWW.WW.",
     "..F..F..",
     "........",
   ]),

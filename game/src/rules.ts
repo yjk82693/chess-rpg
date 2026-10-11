@@ -2,7 +2,7 @@
 import {
   Attribute, BURN_DOT_PCT, BURN_TURNS, EXP_HIT, EXP_KILL, HIT_MAX, HIT_MIN,
   ITEM_HEAL_PCT, REACTIONS, Reaction, Subskill, TERRAIN, Team, UnitClass, WEAPON_RANGE,
-  isMagic, triangleMod,
+  isMagic, triangleMod, WEAPON_POWER, ITEM_CLEARS_STATUS,
 } from "./data.js";
 import { Battle, Unit, aliveOf, dist, terrainAt } from "./state.js";
 
@@ -68,8 +68,8 @@ export interface DamagePreview {
 export function previewDamage(att: Unit, def: Unit): DamagePreview {
   const triangle = triangleMod(att.weapon, def.weapon);
   const raw = isMagic(att.weapon)
-    ? ((att.stats.mag + att.stats.atk) / 2) * MAGIC_EFFECTIVENESS[def.cls]
-    : att.stats.atk * triangle;
+    ? ((att.stats.mag + att.stats.atk) / 2 + WEAPON_POWER[att.weapon]) * MAGIC_EFFECTIVENESS[def.cls]
+    : (att.stats.atk + WEAPON_POWER[att.weapon]) * triangle;
   let dmg = Math.max(MIN_DAMAGE, raw - def.stats.def);
 
   const reaction = def.mark && def.mark !== att.attribute ? pairReaction(att.attribute, def.mark) : null;
@@ -141,6 +141,7 @@ export function useItem(b: Battle, u: Unit): void {
   if (!item) return;
   const amount = Math.min(u.maxHp - u.hp, Math.max(1, Math.round(u.maxHp * ITEM_HEAL_PCT[item])));
   u.hp += amount;
+  if (ITEM_CLEARS_STATUS[item]) { u.burnTurns = 0; u.mark = null; }
   b.log.push({ t: "heal", turn: b.turn, unit: u.id, amount, source: "item" });
 }
 

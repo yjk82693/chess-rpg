@@ -1,6 +1,6 @@
 // state.ts: runtime types, seeded RNG, unit creation, small board helpers.
 import {
-  Attribute, CLASSES, GRID_SIZE, Item, Reaction, Stats, Subskill, SUBSKILL_BONUS,
+  Attribute, CLASSES, GRID_SIZE, Item, MAX_ITEMS_PER_UNIT, Reaction, Stats, Subskill, SUBSKILL_BONUS,
   Team, Terrain, UnitClass, Weapon,
 } from "./data.js";
 
@@ -37,6 +37,7 @@ export interface UnitSpec {
   exp: number;
   star: number;
   promotion: number;          // 0 = base, 1-3 = tiers reached
+  items?: Item[];             // PLAN section 11: max 2, restored every battle
   subskill: Subskill | null;
 }
 
@@ -81,7 +82,7 @@ export function makeUnit(spec: UnitSpec, team: Team, pos: Pos): Unit {
   return {
     id: spec.id, team, cls: spec.class, weapon: spec.weapon, attribute: spec.attribute,
     level: spec.level, subskill: spec.subskill, stats, maxHp: stats.hp, hp: stats.hp,
-    pos: { ...pos }, alive: true, burnTurns: 0, mark: null, items: [Item.Vulnerary], expGained: 0,
+    pos: { ...pos }, alive: true, burnTurns: 0, mark: null, items: (spec.items ?? [Item.Vulnerary]).slice(0, MAX_ITEMS_PER_UNIT), expGained: 0,
   };
 }
 

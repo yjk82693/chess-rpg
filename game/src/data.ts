@@ -116,11 +116,15 @@ export function reactionFor(attacker: Attribute, defender: Attribute): Reaction 
 
 // ---------- Items ----------
 export enum Item {
-  Vulnerary = "vulnerary", // heal 30% max HP, one use
+  Vulnerary = "vulnerary", // heal 30% max HP
+  Elixir = "elixir",       // heal 100% max HP
+  Salve = "salve",         // heal 15% max HP, clears burn and attribute mark
 }
 
 export const ITEM_HEAL_PCT: Record<Item, number> = {
   [Item.Vulnerary]: 0.3,
+  [Item.Elixir]: 1.0,
+  [Item.Salve]: 0.15,
 };
 
 // ---------- Units (chess roles for readability) ----------
@@ -228,3 +232,27 @@ export enum Team {
 export const HIT_MIN = 0;
 export const HIT_MAX = 100;
 export const BASE_HIT = 85;
+
+// ---------- Weapon power (design doc: Power is added to ATK when attacking) ----------
+export const WEAPON_POWER: Record<Weapon, number> = {
+  [Weapon.Sword]: 5,
+  [Weapon.Axe]: 7,
+  [Weapon.Lance]: 6,
+  [Weapon.Tome]: 5,
+};
+
+// ---------- Shop (PLAN section 11) ----------
+export const ITEM_PRICE: Record<Item, number> = {
+  [Item.Vulnerary]: 50,
+  [Item.Elixir]: 150,
+  [Item.Salve]: 40,
+};
+
+export const ITEM_CLEARS_STATUS: Record<Item, boolean> = {
+  [Item.Vulnerary]: false,
+  [Item.Elixir]: false,
+  [Item.Salve]: true,
+};
+
+export const SHOP_BUDGET = 300;          // gold per generation, not carried over
+export const MAX_ITEMS_PER_UNIT = 2;

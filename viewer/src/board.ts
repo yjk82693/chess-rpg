@@ -15,8 +15,13 @@ export interface DrawOptions {
 export class BoardRenderer {
   readonly ctx: CanvasRenderingContext2D;
   readonly size = GRID_SIZE * TILE;
+  private animation: number | null = null;
+  private latest: DrawOptions | null = null;
+  private readonly reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  private readonly canvas: HTMLCanvasElement;
 
   constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = this.size * dpr;
     canvas.height = this.size * dpr;
@@ -27,6 +32,13 @@ export class BoardRenderer {
   }
 
   draw(o: DrawOptions) {
+    this.latest = o;
+    if (this.animation === null && this.canvas.isConnected && !this.reducedMotion.matches) {
+      this.animation = window.requestAnimationFrame(() => {
+        this.animation = null;
+        if (this.canvas.isConnected && this.latest) this.draw(this.latest);
+      });
+    }
     const c = this.ctx;
     c.clearRect(0, 0, this.size, this.size);
     this.terrain(o.grid);
@@ -64,27 +76,57 @@ export class BoardRenderer {
       for (let x = 0; x < GRID_SIZE; x++) {
         const t = grid[y][x];
         const px = x * TILE, py = y * TILE;
-        c.fillStyle = COLORS.terrain[t];
+        const ground = c.createLinearGradient(px, py, px + TILE, py + TILE);
+        ground.addColorStop(0, COLORS.terrain[t]);
+        ground.addColorStop(1, t === Terrain.Water ? "#28527e" : t === Terrain.Forest ? "#285536" : t === Terrain.Fort ? "#67665f" : "#7e9b59");
+        c.fillStyle = ground;
         c.fillRect(px, py, TILE, TILE);
         if (t === Terrain.Forest) {
-          c.fillStyle = COLORS.forestDetail;
-          for (const [ox, oy] of [[0.28, 0.42], [0.64, 0.32], [0.5, 0.72]]) {
+          for (const [ox, oy] of [[0.24, 0.38], [0.7, 0.28], [0.52, 0.72]]) {
             const cx = px + ox * TILE, cy = py + oy * TILE;
-            c.beginPath(); c.moveTo(cx, cy - 11); c.lineTo(cx - 8, cy + 6); c.lineTo(cx + 8, cy + 6); c.closePath(); c.fill();
+            c.fillStyle = "rgba(10,25,17,0.28)";
+            c.beginPath(); c.ellipse(cx + 3, cy + 10, 13, 6, 0, 0, Math.PI * 2); c.fill();
+            c.fillStyle = "#614c32"; c.fillRect(cx - 2, cy, 4, 13);
+            for (let layer = 0; layer < 3; layer++) {
+              const top = cy - 18 + layer * 7, width = 8 + layer * 3;
+              c.fillStyle = layer === 1 ? "#438653" : COLORS.forestDetail;
+              c.beginPath(); c.moveTo(cx, top); c.lineTo(cx - width, top + 15); c.lineTo(cx + width, top + 15); c.closePath(); c.fill();
+              c.strokeStyle = "rgba(166,206,119,0.32)"; c.lineWidth = 1;
+              c.beginPath(); c.moveTo(cx, top + 2); c.lineTo(cx - width + 2, top + 13); c.stroke();
+            }
           }
         } else if (t === Terrain.Fort) {
-          c.strokeStyle = COLORS.fortDetail; c.lineWidth = 3;
-          c.strokeRect(px + 11, py + 15, TILE - 22, TILE - 25);
-          c.fillStyle = COLORS.fortDetail;
-          for (let i = 0; i < 4; i++) c.fillRect(px + 11 + i * ((TILE - 28) / 3), py + 8, 6, 7);
+          c.fillStyle = "rgba(0,0,0,0.25)"; c.fillRect(px + 10, py + 15, TILE - 18, TILE - 23);
+          c.fillStyle = "#b4afa0"; c.fillRect(px + 9, py + 15, TILE - 18, TILE - 26);
+          c.strokeStyle = COLORS.fortDetail; c.lineWidth = 2;
+          for (let row = 0; row < 4; row++) {
+            const yy = py + 15 + row * 9;
+            c.beginPath(); c.moveTo(px + 9, yy); c.lineTo(px + TILE - 9, yy); c.stroke();
+            for (let col = 0; col < 3; col++) {
+              const xx = px + 16 + col * 15 + (row % 2) * 7;
+              c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx, yy + 9); c.stroke();
+            }
+          }
+          for (let i = 0; i < 4; i++) {
+            const xx = px + 9 + i * ((TILE - 26) / 3);
+            c.fillStyle = "#c8c0aa"; c.fillRect(xx, py + 8, 8, 10);
+            c.fillStyle = COLORS.fortDetail; c.fillRect(xx + 6, py + 10, 2, 8);
+          }
+          c.fillStyle = "#41443f";
+          c.beginPath(); c.arc(px + TILE / 2, py + 37, 7, Math.PI, 0); c.lineTo(px + TILE / 2 + 7, py + 53); c.lineTo(px + TILE / 2 - 7, py + 53); c.closePath(); c.fill();
         } else if (t === Terrain.Water) {
-          c.strokeStyle = COLORS.waterDetail; c.lineWidth = 2;
-          for (const oy of [0.38, 0.66]) {
-            const yy = py + oy * TILE;
-            c.beginPath(); c.moveTo(px + 9, yy);
-            c.quadraticCurveTo(px + TILE * 0.3, yy - 5, px + TILE * 0.5, yy);
-            c.quadraticCurveTo(px + TILE * 0.7, yy + 5, px + TILE - 9, yy);
-            c.stroke();
+          for (let i = 0; i < 3; i++) {
+            const yy = py + 14 + i * 17 + (this.reducedMotion.matches ? 0 : Math.sin(performance.now() / 1100 + x + y + i) * 1.2), shift = ((x + y + i) % 3) * 3;
+            c.strokeStyle = i === 1 ? COLORS.waterDetail : "rgba(176,218,240,0.45)"; c.lineWidth = 2;
+            c.beginPath(); c.moveTo(px + 6 + shift, yy);
+            c.bezierCurveTo(px + 20, yy - 6, px + 36, yy + 6, px + TILE - 6 - shift, yy); c.stroke();
+            c.strokeStyle = "rgba(210,239,255,0.55)"; c.lineWidth = 1;
+            c.beginPath(); c.moveTo(px + 13 + shift, yy + 3); c.lineTo(px + 23 + shift, yy + 3); c.stroke();
+          }
+        } else {
+          c.strokeStyle = "rgba(53,79,38,0.2)"; c.lineWidth = 1;
+          for (const [ox, oy] of [[10, 15], [46, 44], [19, 53]]) {
+            c.beginPath(); c.moveTo(px + ox - 2, py + oy); c.lineTo(px + ox, py + oy - 4); c.lineTo(px + ox + 2, py + oy); c.stroke();
           }
         }
       }
@@ -127,26 +169,46 @@ export class BoardRenderer {
     c.fillStyle = ratio > 0.6 ? COLORS.hpGood : ratio > 0.3 ? COLORS.hpMid : COLORS.hpLow;
     c.fillRect(bx, by, w * ratio, h);
     c.globalAlpha = 1;
+    if (faded) {
+      c.save();
+      c.strokeStyle = "#180e15"; c.lineWidth = 7;
+      c.beginPath(); c.moveTo(cx - 12, cy - 12); c.lineTo(cx + 12, cy + 12);
+      c.moveTo(cx + 12, cy - 12); c.lineTo(cx - 12, cy + 12); c.stroke();
+      c.strokeStyle = COLORS.damage; c.lineWidth = 3; c.stroke();
+      c.restore();
+    }
   }
 
   private cursor(p: Pos) {
     const c = this.ctx;
     const x = p.x * TILE + 3, y = p.y * TILE + 3, s = TILE - 6, k = 14;
-    c.strokeStyle = COLORS.cursor; c.lineWidth = 3;
+    c.save();
+    const pulse = this.reducedMotion.matches ? 0.5 : (Math.sin(performance.now() / 350) + 1) / 2;
+    c.shadowColor = COLORS.cursor; c.shadowBlur = 3 + pulse * 5;
+    c.strokeStyle = "#220d14"; c.lineWidth = 6;
     c.beginPath();
     c.moveTo(x, y + k); c.lineTo(x, y); c.lineTo(x + k, y);
     c.moveTo(x + s - k, y); c.lineTo(x + s, y); c.lineTo(x + s, y + k);
     c.moveTo(x, y + s - k); c.lineTo(x, y + s); c.lineTo(x + k, y + s);
     c.moveTo(x + s - k, y + s); c.lineTo(x + s, y + s); c.lineTo(x + s, y + s - k);
     c.stroke();
+    c.strokeStyle = COLORS.cursor; c.lineWidth = 3 + pulse; c.stroke();
+    c.restore();
   }
 
   private float(u: UnitView, text: string, color: string, offset = 0) {
     const c = this.ctx;
-    const x = u.x * TILE + TILE / 2, y = u.y * TILE + 11 - offset;
-    c.font = "bold 15px Inter, system-ui, sans-serif";
+    const size = /^[+-]\d+$/.test(text) ? 25 : 17;
+    c.save();
+    c.font = `bold ${size}px Inter, system-ui, sans-serif`;
+    const half = c.measureText(text).width / 2 + 5;
+    const x = Math.max(half, Math.min(this.size - half, u.x * TILE + TILE / 2));
+    // Keep reactions above damage while retaining labels on the top row.
+    const y = Math.max(size / 2 + 4, u.y * TILE + (offset ? 12 : 32));
     c.textAlign = "center"; c.textBaseline = "middle";
-    c.lineWidth = 4; c.strokeStyle = "rgba(0,0,0,0.85)"; c.strokeText(text, x, y);
+    c.lineJoin = "round";
+    c.lineWidth = 5; c.strokeStyle = "rgba(0,0,0,0.95)"; c.strokeText(text, x, y);
     c.fillStyle = color; c.fillText(text, x, y);
+    c.restore();
   }
 }

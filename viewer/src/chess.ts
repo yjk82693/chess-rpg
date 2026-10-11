@@ -55,6 +55,12 @@ const kingArt = (mine: boolean) => mine ? `king_${avatar()}` : `king_${AVATARS[(
 const prefs = () => ({ speed: Number(kv.get("tg.speed") ?? "550") || 550, hover: kv.get("tg.hover") !== "off" });
 
 function loadSprites() {
+  for (const id of [...Object.keys(SPELLS), "chest", "pouch"]) {
+    if (sprites[id]) continue;
+    const img = new Image();
+    img.src = `/assets/cards/${id}.png`;
+    sprites[id] = img;
+  }
   for (const id of [...Object.keys(CARDS), ...Object.keys(SPELLS), "king_dog", "king_cat", "king_parrot"]) {
     if (sprites[id]) continue;
     const img = new Image();
@@ -161,6 +167,10 @@ function injectStyle() {
 const rarColor = (id: string) => RARITY_COLOR[rarityOf(id)];
 const rarBadge = (id: string) => `<span class="cr-rar" style="color:${rarColor(id)}">${RARITY_LABEL[rarityOf(id)]}</span> <span class="cr-cost" title="Deck cost">${costOf(id)}</span>`;
 const cardLabel = (id: string) => CARDS[id]?.name ?? SPELLS[id]?.name ?? id;
+
+function ico(id: string, size = 18, fallback = "✦") {
+  return `<img src="/assets/cards/${id}.png" alt="" onerror="this.replaceWith('${fallback}')" style="width:${size}px;height:${size}px;object-fit:contain;vertical-align:middle;margin-right:4px">`;
+}
 
 function artBox(id: string, fallback: string, h = 120) {
   return `<div style="position:relative;height:${h}px;margin:6px 0;border-radius:8px;overflow:hidden;background:radial-gradient(circle at 50% 42%, ${rarColor(id)}66, rgba(10,14,30,.92) 70%);border:1px solid ${rarColor(id)}66">
@@ -596,7 +606,7 @@ async function rankPane() {
       <div><div class="stat-big">🏆 ${p.trophies}</div><div class="muted small">trophies</div></div>
       <div><div class="stat-big">${c.wins}–${c.losses}</div><div class="muted small">wins–losses</div></div>
       <div><div class="stat-big">${p.ladderCleared}/${LADDER.length}</div><div class="muted small">ladder cleared</div></div>
-      <div><div class="stat-big">${c.chests}</div><div class="muted small">chests opened</div></div>
+      <div>${ico("chest", 40, "📦")}<div class="stat-big">${c.chests}</div><div class="muted small">chests opened</div></div>
     </div>
     <div class="panel" style="max-width:640px;margin:0 auto"><h3>Leaderboard</h3><ol class="log" id="lb"><li class="muted">${online ? "Loading…" : "Needs the API server"}</li></ol></div>`;
   if (!online) return;
@@ -876,7 +886,7 @@ function battle(m: Match) {
     $("spellbar").innerHTML = s.spells[me].map(id => {
       const sp = SPELLS[id]!, used = s.used[me].includes(id), ok = myTurn && !used && spellActs(id).length > 0;
       const note = used ? "used" : s.kingCd[me] > 0 ? `cd ${s.kingCd[me]}` : `${spellPower(s, me, id)}`;
-      return `<button class="btn sm cr-spell ${choice?.key === `spell:${id}` ? "on" : ""}" data-spell="${id}" ${ok ? "" : "disabled"} title="${esc(sp.blurb)}" style="border-color:${rarColor(id)};color:${rarColor(id)}">✦ ${esc(sp.name)} <span class="muted small">${note}</span></button>`;
+      return `<button class="btn sm cr-spell ${choice?.key === `spell:${id}` ? "on" : ""}" data-spell="${id}" ${ok ? "" : "disabled"} title="${esc(sp.blurb)}" style="border-color:${rarColor(id)};color:${rarColor(id)}">${ico(id, 22)}${esc(sp.name)} <span class="muted small">${note}</span></button>`;
     }).join("") || `<span class="muted small">none equipped</span>`;
     $("spellbar").querySelectorAll<HTMLElement>("[data-spell]").forEach(b => b.addEventListener("click", () => {
       const k = myKing();
@@ -961,7 +971,7 @@ function battle(m: Match) {
     panel.style.cssText = "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:50;max-width:760px;width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.6)";
     panel.innerHTML = `<h3>${won ? "Victory!" : s.winner === "draw" ? "Draw" : "Defeat"}${r.firstClear ? " · First clear ×3" : ""}</h3>
       <p>${r.gems ? `💎 +${r.gems} gems` : "No gems this time."}${r.trophies ? ` · 🏆 ${r.trophies > 0 ? "+" : ""}${r.trophies}` : ""}</p>
-      ${r.chest.length ? `<h4 class="sub-h">Chest · ${r.chest.length} cards</h4><div id="chest" style="display:flex;gap:8px;flex-wrap:wrap"></div>` : m.mode === "pvp" ? "" : `<p class="muted small">Win to earn a chest of 5 cards.</p>`}
+      ${r.chest.length ? `<h4 class="sub-h">${ico("chest", 32, "📦")}Chest · ${r.chest.length} cards</h4><div id="chest" style="display:flex;gap:8px;flex-wrap:wrap"></div>` : m.mode === "pvp" ? "" : `<p class="muted small">Win to earn a chest of 5 cards.</p>`}
       <div class="row" style="margin-top:12px">${m.mode === "pvp" ? "" : `<button class="btn primary" id="again">Rematch</button>`}<button class="btn" id="tohome">Home</button><button class="btn" id="todeck">Cards</button></div>`;
     app().appendChild(panel);
     const chestEl = document.getElementById("chest");

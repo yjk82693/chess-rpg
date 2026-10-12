@@ -6,3 +6,5 @@ __pycache__/
 .DS_Store
 viewer/public/data/*.json
 shared/tg-src.txt
+notes/*.log
+notes/tg-src.txt

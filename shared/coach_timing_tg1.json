@@ -1,0 +1,16 @@
+{
+  "run_id": "tg1",
+  "generation": 1,
+  "condition": "full",
+  "coach_mode": "llm",
+  "dry_run": true,
+  "wall_seconds": 28.079440125,
+  "per_persona_seconds": {
+    "Aggressor": 3.1028406250000002,
+    "Warden": 14.679973958999998,
+    "Terrain Tactician": 8.214815333,
+    "Analyst": 27.474334875
+  },
+  "sum_persona_seconds": 53.471964791999994,
+  "speedup_vs_sequential": 1.9043102196468737
+}

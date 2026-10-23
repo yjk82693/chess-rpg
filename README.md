@@ -2,6 +2,13 @@
 
 **A dark-fantasy chess RPG where every piece is a hero, plus a self-improving AI team that trains armies and an adaptive rival that learns how to counter you.**
 
+<p align="center">
+  <img src="viewer/public/assets/cards/king_dog_full.png" width="180" alt="Dog King">
+  <img src="viewer/public/assets/cards/king_cat_full.png" width="180" alt="Cat King">
+  <img src="viewer/public/assets/cards/king_parrot_full.png" width="180" alt="Parrot King">
+</p>
+<p align="center"><sub>Choose your King: dog, cat, or parrot.</sub></p>
+
 Started at c0mpiled-15 (Penn State, Oct 11, 2026) for Track 1A: Build a Self-Improving Agent Team (Luminal).
 
 The repo contains two connected parts that share one engine, server, viewer, and MongoDB database:
@@ -24,19 +31,32 @@ Chess has perfect rules but no personality. Fire Emblem has personality but less
 ### Pieces are hero cards
 Movement follows the chess role. Combat follows the hero in that slot.
 
-| Role | Heroes | Notes |
-|---|---|---|
-| Pawn | Swordsman, Axeman, Spearman | Weapon triangle decides pawn fights |
-| Knight | Armored Knight, Cavalier, Aero Knight | Jumping wall, fast double striker, or flier |
-| Bishop | Mage, Cleric | Magic along diagonals, or heals along them |
-| Rook | Dragon, Griffon | Flying heavy hitter or fast river crosser |
-| Queen | Queen of Storms | 3 instant kills, then gone. Promoted pawns become a new Queen |
-| King | King | Casts your spell cards. Lose him, lose the game |
+<table>
+<tr><th>Role</th><th>Heroes</th><th>Notes</th></tr>
+<tr><td><b>Pawn</b></td><td><table><tr><td align="center"><img src="viewer/public/assets/cards/inf_sword.png" width="96" alt="Swordsman"><br><sub>Swordsman</sub></td><td align="center"><img src="viewer/public/assets/cards/inf_axe.png" width="96" alt="Axeman"><br><sub>Axeman</sub></td><td align="center"><img src="viewer/public/assets/cards/inf_lance.png" width="96" alt="Spearman"><br><sub>Spearman</sub></td></tr></table></td><td>Weapon triangle decides pawn fights</td></tr>
+<tr><td><b>Knight</b></td><td><table><tr><td align="center"><img src="viewer/public/assets/cards/armored.png" width="96" alt="Armored Knight"><br><sub>Armored Knight</sub></td><td align="center"><img src="viewer/public/assets/cards/cavalier.png" width="96" alt="Cavalier"><br><sub>Cavalier</sub></td><td align="center"><img src="viewer/public/assets/cards/aero.png" width="96" alt="Aero Knight"><br><sub>Aero Knight</sub></td></tr></table></td><td>Jumping wall, fast double striker, or flier</td></tr>
+<tr><td><b>Bishop</b></td><td><table><tr><td align="center"><img src="viewer/public/assets/cards/mage.png" width="96" alt="Mage"><br><sub>Mage</sub></td><td align="center"><img src="viewer/public/assets/cards/cleric.png" width="96" alt="Cleric"><br><sub>Cleric</sub></td></tr></table></td><td>Magic along diagonals, or heals along them</td></tr>
+<tr><td><b>Rook</b></td><td><table><tr><td align="center"><img src="viewer/public/assets/cards/dragon.png" width="96" alt="Dragon"><br><sub>Dragon</sub></td><td align="center"><img src="viewer/public/assets/cards/griffon.png" width="96" alt="Griffon"><br><sub>Griffon</sub></td></tr></table></td><td>Flying heavy hitter or fast river crosser</td></tr>
+<tr><td><b>Queen</b></td><td><table><tr><td align="center"><img src="viewer/public/assets/cards/queen.png" width="96" alt="Queen of Storms"><br><sub>Queen of Storms</sub></td></tr></table></td><td>3 instant kills, then gone. Promoted pawns become a new Queen</td></tr>
+<tr><td><b>King</b></td><td><table><tr><td align="center"><img src="viewer/public/assets/cards/king.png" width="96" alt="King"><br><sub>King</sub></td></tr></table></td><td>Casts your spell cards. Lose him, lose the game</td></tr>
+</table>
 
 ### Combat and spells
 - Attacking starts an exchange: the attacker strikes and the defender may counter. A combat forecast shows damage dealt and taken before you commit.
 - Weapon triangle: Sword > Axe > Lance > Sword. Tome magic targets resistance and deals double damage to armored units, half to fliers.
 - The King casts up to 3 spell cards per battle, one use each, on a cooldown: Rally, Curse, Mend, Lightning, Fireball, Bulwark, Earthquake, Meteor, Resurrect.
+
+<p align="center">
+  <img src="viewer/public/assets/cards/rally.png" width="64" alt="Rally">
+  <img src="viewer/public/assets/cards/curse.png" width="64" alt="Curse">
+  <img src="viewer/public/assets/cards/mend.png" width="64" alt="Mend">
+  <img src="viewer/public/assets/cards/lightning.png" width="64" alt="Lightning">
+  <img src="viewer/public/assets/cards/fireball.png" width="64" alt="Fireball">
+  <img src="viewer/public/assets/cards/bulwark.png" width="64" alt="Bulwark">
+  <img src="viewer/public/assets/cards/earthquake.png" width="64" alt="Earthquake">
+  <img src="viewer/public/assets/cards/meteor.png" width="64" alt="Meteor">
+  <img src="viewer/public/assets/cards/resurrect.png" width="64" alt="Resurrect">
+</p>
 
 ### Deckbuilding and progression
 - Every hero and spell has a cost and a rarity (Common to Legend). A deck must fit a 16-point budget.

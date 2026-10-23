@@ -136,14 +136,14 @@ Score = win (1/0) + 0.5 x (own HP ratio - enemy HP ratio). Training set: n = 60 
 
 Measured with `npm --prefix game run bench` (`game/scripts/bench.ts`): the 60-battle training set, 50 passes (3,000 battles), single thread, after warmup.
 
-| Metric | Value |
-|---|---|
-| Time per battle | mean ~5.3 ms, median ~5.1 ms, p95 ~8.2 ms |
-| Throughput | ~185 battles/s, single thread |
-| Full candidate evaluation (60 battles) | ~0.32 s |
-| Determinism | 60/60 battles identical across runs (full event log hashed) |
+| Metric | Apple M1 Pro (laptop) | Intel Xeon 2.8 GHz (2-core cloud container) |
+|---|---|---|
+| Time per battle | mean 2.9 ms, median 2.9 ms, p95 3.9 ms | mean ~5.3 ms, median ~5.1 ms, p95 ~8.2 ms |
+| Throughput | ~345 battles/s | ~185 battles/s |
+| Full candidate evaluation (60 battles) | ~0.17 s | ~0.32 s |
+| Determinism | 60/60 identical | 60/60 identical |
 
-Environment: Node 22, 2-core Intel Xeon 2.8 GHz cloud container. Absolute numbers vary by machine, so rerun the script to check yours.
+Both runs used Node 22 on a single thread. Determinism means the full event log of every battle hashed identically across runs. Absolute numbers vary by machine, so rerun the script to check yours.
 
 ### Solo mode with an adaptive rival
 You can play Training Grounds yourself. Every battle you play is summarized and saved. The rival studies your habits (which unit carries you, whether you turtle on forts, hide in forests, or rush) and writes a counter-playbook for the enemy army. The more you play, the better it gets at beating you. The current rival is rule-based (`game/src/rival.ts`).
